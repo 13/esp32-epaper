@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
+#include <AsyncTCP.h>
 #include <ArduinoJson.h>
 
 #define ENABLE_GxEPD2_GFX 0
@@ -144,6 +145,8 @@ void helloFullScreenPartialMode(String text)
   Serial.println("helloFullScreenPartialMode done");
 }
 
+// MQTT
+
 void onMqttConnect(bool sessionPresent)
 {
   Serial.println("Connected to MQTT.");
@@ -171,4 +174,31 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   output += t3;
 
   bootScreen(output);
+}
+
+// Fetch
+
+void onData(void* arg, AsyncClient* client, void* data, size_t len) {
+  StaticJsonDocument<200> json;
+  DeserializationError error = deserializeJson(json, (char*)data);
+  if (error) {
+    // handle error
+  } else {
+    // use json data
+  }
+  client->close();
+  delete client;
+}
+
+void fetchJsonAsync(const char* url) {
+  AsyncClient* client = new AsyncClient();
+  client->onData(onData, NULL);
+  // parse the url to get the server and path
+  int port = 80;
+  String server, path;
+  // code to parse the url and extract server and path
+  client->connect(server.c_str(), port);
+  client->add("GET " + path + " HTTP/1.1\r\n");
+  client->add("Host: " + server + "\r\n");
+  client->add("Connection: close\r\n\r\n");
 }
