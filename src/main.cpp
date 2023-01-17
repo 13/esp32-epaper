@@ -9,8 +9,8 @@
 #include <Fonts/FreeMonoBold9pt7b.h>
 
 // WiFi credentials
-#define WIFI_SSID "muhxnetwork"
-#define WIFI_PASSWORD "Wombat2020"
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
 
 // MQTT server credentials
 #define MQTT_HOST IPAddress(192, 168, 22, 5)
