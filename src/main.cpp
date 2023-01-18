@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
-#include <AsyncTCP.h>
+#include <HTTPClient.h>
 #include <ArduinoJson.h>
 
 #define ENABLE_GxEPD2_GFX 0
@@ -18,7 +18,13 @@
 #define MQTT_PORT 1883
 #define MQTT_TOPIC "sensors/3f/json"
 
+// URL
+#define URL "http://arduinojson.org/example.json"
+
 AsyncMqttClient mqttClient;
+// HTTPClient
+WiFiClient client; // or WiFiClientSecure for HTTPS
+HTTPClient http;
 
 // Initialize the e-paper display
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=*/5, /*DC=*/17, /*RST=*/16, /*BUSY=*/4)); // GDEW042T2 400x300, UC8176 (IL0398)
@@ -27,6 +33,7 @@ void bootScreen(String text);
 void helloFullScreenPartialMode(String text);
 void onMqttConnect(bool sessionPresent);
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
+void fetchJson(const char *url);
 
 void setup()
 {
@@ -53,6 +60,9 @@ void setup()
   }
   Serial.println("Connected to WiFi");
   helloFullScreenPartialMode("WIFI");
+  
+  // FetchJson
+  fetchJson(URL);
 
   // Initialize the MQTT client
   mqttClient.onConnect(onMqttConnect);
@@ -177,28 +187,23 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 }
 
 // Fetch
+void fetchJson(const char *url)
+{
+  http.useHTTP10(true);
+  http.begin(client, url);
+  http.GET();
 
-void onData(void* arg, AsyncClient* client, void* data, size_t len) {
-  StaticJsonDocument<200> json;
-  DeserializationError error = deserializeJson(json, (char*)data);
-  if (error) {
-    // handle error
-  } else {
-    // use json data
-  }
-  client->close();
-  delete client;
-}
+  // Parse response
+  DynamicJsonDocument doc(2048);
+  deserializeJson(doc, http.getStream());
 
-void fetchJsonAsync(const char* url) {
-  AsyncClient* client = new AsyncClient();
-  client->onData(onData, NULL);
-  // parse the url to get the server and path
-  int port = 80;
-  String server, path;
-  // code to parse the url and extract server and path
-  client->connect(server.c_str(), port);
-  client->add("GET " + path + " HTTP/1.1\r\n");
-  client->add("Host: " + server + "\r\n");
-  client->add("Connection: close\r\n\r\n");
+  // Read values
+  Serial.println(F("Response:"));
+  Serial.println(doc["sensor"].as<const char *>());
+  Serial.println(doc["time"].as<long>());
+  Serial.println(doc["data"][0].as<float>(), 6);
+  Serial.println(doc["data"][1].as<float>(), 6);
+
+  // Disconnect
+  http.end();
 }
