@@ -16,10 +16,10 @@
 // MQTT server credentials
 #define MQTT_HOST IPAddress(192, 168, 22, 5)
 #define MQTT_PORT 1883
-#define MQTT_TOPIC "sensors/3f/json"
+#define MQTT_TOPIC "shellies/HZ_DG/status/switch:0"
 
 // URL
-#define URL "http://arduinojson.org/example.json"
+#define URL "http://192.168.22.70/rpc/Shelly.GetStatus"
 
 AsyncMqttClient mqttClient;
 // HTTPClient
@@ -29,8 +29,8 @@ HTTPClient http;
 // Initialize the e-paper display
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=*/5, /*DC=*/17, /*RST=*/16, /*BUSY=*/4)); // GDEW042T2 400x300, UC8176 (IL0398)
 
-void bootScreen(String text);
-void helloFullScreenPartialMode(String text);
+void displayFull(String text);
+void displayPartial(String text);
 void onMqttConnect(bool sessionPresent);
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 void fetchJson(const char *url);
@@ -46,7 +46,7 @@ void setup()
   boot += __TIMESTAMP__;
 
   display.init(115200, true, 2, false); // USE THIS for Waveshare boards with "clever" reset circuit, 2ms reset pulse
-  bootScreen("HELLO");
+  displayFull("HELLO");
   delay(1000);
   display.powerOff();
   Serial.println("setup done");
@@ -59,8 +59,8 @@ void setup()
     Serial.println("Connecting to WiFi...");
   }
   Serial.println("Connected to WiFi");
-  helloFullScreenPartialMode("WIFI");
-  
+  displayPartial("WIFI");
+
   // FetchJson
   fetchJson(URL);
 
@@ -76,7 +76,7 @@ void loop()
 }
 
 // void bootScreen(const char* text)
-void bootScreen(String text)
+void displayFull(String text)
 {
   // Serial.println("helloWorld");
   display.setRotation(1);
@@ -115,12 +115,12 @@ void bootScreen(String text)
     display.setCursor(x, y);
     display.print(text);
   } while (display.nextPage());
-  Serial.println("helloWorld done");
+  Serial.println(text);
 }
 
-void helloFullScreenPartialMode(String text)
+void displayPartial(String text)
 {
-  Serial.println("helloFullScreenPartialMode");
+  Serial.println(text);
   display.setPartialWindow(0, 0, display.width(), display.height());
   display.setRotation(1);
   display.setFont(&FreeMonoBold9pt7b);
@@ -152,7 +152,6 @@ void helloFullScreenPartialMode(String text)
     display.setCursor(umx, umy);
     display.print(text);
   } while (display.nextPage());
-  Serial.println("helloFullScreenPartialMode done");
 }
 
 // MQTT
@@ -160,7 +159,7 @@ void helloFullScreenPartialMode(String text)
 void onMqttConnect(bool sessionPresent)
 {
   Serial.println("Connected to MQTT.");
-  helloFullScreenPartialMode("MQTT");
+  //displayPartial("MQTT");
   mqttClient.subscribe(MQTT_TOPIC, 2);
 }
 
@@ -172,7 +171,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   serializeJsonPretty(doc, Serial);
   Serial.println();
 
-  float t1 = doc["T1"];
+  /*float t1 = doc["T1"];
   float t2 = doc["T2"];
   float t3 = doc["T3"];
 
@@ -181,9 +180,13 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   output += " T2: ";
   output += t2;
   output += " T3: ";
-  output += t3;
+  output += t3;*/
+  
+  bool output = doc["output"];
+  String ret = "HEIZUNG: ";
+  ret += output; 
 
-  bootScreen(output);
+  displayPartial(ret);
 }
 
 // Fetch
@@ -198,11 +201,19 @@ void fetchJson(const char *url)
   deserializeJson(doc, http.getStream());
 
   // Read values
-  Serial.println(F("Response:"));
+  /*Serial.println(F("Response:"));
   Serial.println(doc["sensor"].as<const char *>());
   Serial.println(doc["time"].as<long>());
   Serial.println(doc["data"][0].as<float>(), 6);
-  Serial.println(doc["data"][1].as<float>(), 6);
+  Serial.println(doc["data"][1].as<float>(), 6);*/
+
+  bool output = doc["switch:0"]["output"];
+  String ret = "HZ: ";
+  ret += output;
+
+  Serial.println(ret);
+
+  displayPartial(ret);
 
   // Disconnect
   http.end();
