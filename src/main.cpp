@@ -1,8 +1,10 @@
+// #include "my_credentials.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <U8g2_for_Adafruit_GFX.h>
 
 #define ENABLE_GxEPD2_GFX 0
 
@@ -21,6 +23,13 @@
 // URL
 #define URL "http://192.168.22.70/rpc/Shelly.GetStatus"
 
+#define SCREEN_WIDTH  400.0    // Set for landscape mode, don't remove the decimal place!
+#define SCREEN_HEIGHT 300.0
+
+enum alignment {LEFT, RIGHT, CENTER};
+
+U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
+
 AsyncMqttClient mqttClient;
 // HTTPClient
 WiFiClient client; // or WiFiClientSecure for HTTPS
@@ -29,11 +38,15 @@ HTTPClient http;
 // Initialize the e-paper display
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=*/5, /*DC=*/17, /*RST=*/16, /*BUSY=*/4)); // GDEW042T2 400x300, UC8176 (IL0398)
 
+void InitialiseDisplay();
 void displayFull(String text);
 void displayPartial(String text);
 void onMqttConnect(bool sessionPresent);
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 void fetchJson(const char *url);
+void DrawHeadingSection();
+void drawString(int x, int y, String text, alignment align);
+void DisplayData();
 
 void setup()
 {
@@ -42,14 +55,15 @@ void setup()
   delay(4000);
   // boot
   Serial.printf("\n\nBooting... Compiled: %s\n", __TIMESTAMP__);
-  String boot = "Booting...\nCompiled: ";
-  boot += __TIMESTAMP__;
+  String bootText = "Booting...\nCompiled: ";
+  bootText += __TIMESTAMP__;
 
-  display.init(115200, true, 2, false); // USE THIS for Waveshare boards with "clever" reset circuit, 2ms reset pulse
-  displayFull("HELLO");
+  // display.init(115200, true, 2, false); // USE THIS for Waveshare boards with "clever" reset circuit, 2ms reset pulse
+  /*displayFull(bootText);
   delay(1000);
-  display.powerOff();
-  Serial.println("setup done");
+  display.powerOff();*/
+  InitialiseDisplay();
+
 
   // Connect to WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -59,7 +73,8 @@ void setup()
     Serial.println("Connecting to WiFi...");
   }
   Serial.println("Connected to WiFi");
-  displayPartial("WIFI");
+  // displayPartial("WIFI");
+  drawString(4, 0, "WIFI", LEFT);
 
   // FetchJson
   fetchJson(URL);
@@ -73,12 +88,11 @@ void setup()
 
 void loop()
 {
+  // nothing to do here
 }
 
-// void bootScreen(const char* text)
 void displayFull(String text)
 {
-  // Serial.println("helloWorld");
   display.setRotation(1);
   display.setFont(&FreeMonoBold9pt7b);
   if (display.epd2.WIDTH < 104)
@@ -147,6 +161,7 @@ void displayPartial(String text)
     display.fillScreen(GxEPD_WHITE);
     // display.setCursor(hwx, hwy);
     // display.print(HelloWorld);
+    display.drawFastHLine(0,16,128,GxEPD_BLACK);
     display.setCursor(utx, uty);
     display.print(text);
     display.setCursor(umx, umy);
@@ -159,7 +174,8 @@ void displayPartial(String text)
 void onMqttConnect(bool sessionPresent)
 {
   Serial.println("Connected to MQTT.");
-  //displayPartial("MQTT");
+  // displayPartial("MQTT");
+  drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
   mqttClient.subscribe(MQTT_TOPIC, 2);
 }
 
@@ -181,12 +197,12 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   output += t2;
   output += " T3: ";
   output += t3;*/
-  
+
   bool output = doc["output"];
   String ret = "HEIZUNG: ";
-  ret += output; 
-
-  displayPartial(ret);
+  ret += output;
+  drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+  //displayPartial(ret);
 }
 
 // Fetch
@@ -213,8 +229,45 @@ void fetchJson(const char *url)
 
   Serial.println(ret);
 
-  displayPartial(ret);
-
+  // displayPartial(ret);
+  drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
   // Disconnect
   http.end();
+}
+
+void DisplayData() {                 // 4.2" e-paper display is 400x300 resolution
+  DrawHeadingSection();                 // Top line of the display
+}
+
+void DrawHeadingSection() {
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  // drawString(SCREEN_WIDTH / 2, 0, "City", CENTER);
+  // drawString(SCREEN_WIDTH, 0, "date_str", RIGHT);
+  // drawString(4, 0, "time_str", LEFT);
+  // DrawBattery(65, 12);
+  display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+}
+
+void drawString(int x, int y, String text, alignment align) {
+  int16_t  x1, y1; //the bounds of x,y and w and h of the variable 'text' in pixels.
+  uint16_t w, h;
+  display.setTextWrap(false);
+  display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
+  if (align == RIGHT)  x = x - w;
+  if (align == CENTER) x = x - w / 2;
+  u8g2Fonts.setCursor(x, y + h);
+  u8g2Fonts.print(text);
+}
+
+void InitialiseDisplay() {
+  display.init(115200, true, 2, false);
+  display.setRotation(1);
+  u8g2Fonts.begin(display); // connect u8g2 procedures to Adafruit GFX
+  u8g2Fonts.setFontMode(1);                  // use u8g2 transparent mode (this is default)
+  u8g2Fonts.setFontDirection(0);             // left to right (this is default)
+  u8g2Fonts.setForegroundColor(GxEPD_BLACK); // apply Adafruit GFX color
+  u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // apply Adafruit GFX color
+  u8g2Fonts.setFont(u8g2_font_helvB10_tf);   // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+  display.fillScreen(GxEPD_WHITE);
+  display.setFullWindow();
 }
