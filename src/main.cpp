@@ -232,8 +232,11 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   bool output = doc["output"];
   String ret = "HEIZUNG: ";
   ret += output;
+  Serial.println(ret);
+
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+  display.display(false);
 }
 
 // Fetch
@@ -255,12 +258,11 @@ void fetchJson(const char *url)
   Serial.println(doc["data"][1].as<float>(), 6);*/
 
   bool output = doc["switch:0"]["output"];
-  String ret = "HZ: ";
+  String ret = "HEIZUNG: ";
   ret += output;
 
   Serial.println(ret);
 
-  // displayPartial(ret);
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
   // Disconnect
