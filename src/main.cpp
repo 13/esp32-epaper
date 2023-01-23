@@ -1,15 +1,14 @@
 // #include "my_credentials.h"
 #include <Arduino.h>
-#include <WiFi.h>
+#include <WiFi.h>              // Built-in
+#include "time.h"              // Built-in
+#include <SPI.h>               // Built-in
+#define ENABLE_GxEPD2_GFX 0
+#include <GxEPD2_BW.h>
+#include <U8g2_for_Adafruit_GFX.h>
 #include <AsyncMqttClient.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <U8g2_for_Adafruit_GFX.h>
-
-#define ENABLE_GxEPD2_GFX 0
-
-#include <GxEPD2_BW.h>
-#include <Fonts/FreeMonoBold9pt7b.h>
 
 // WiFi credentials
 #define WIFI_SSID ""
@@ -30,13 +29,21 @@ enum alignment {LEFT, RIGHT, CENTER};
 
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 
+// Connections for e.g. LOLIN D32
+static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
+static const uint8_t EPD_CS   = 5;  // to EPD CS
+static const uint8_t EPD_RST  = 16; // to EPD RST
+static const uint8_t EPD_DC   = 17; // to EPD DC
+static const uint8_t EPD_SCK  = 18; // to EPD CLK
+static const uint8_t EPD_MISO = 19; // Master-In Slave-Out not used, as no data from display
+static const uint8_t EPD_MOSI = 23; // to EPD DIN
+
+GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
+
 AsyncMqttClient mqttClient;
 // HTTPClient
 WiFiClient client; // or WiFiClientSecure for HTTPS
 HTTPClient http;
-
-// Initialize the e-paper display
-GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=*/5, /*DC=*/17, /*RST=*/16, /*BUSY=*/4)); // GDEW042T2 400x300, UC8176 (IL0398)
 
 void InitialiseDisplay();
 void displayFull(String text);
@@ -74,6 +81,7 @@ void setup()
   }
   Serial.println("Connected to WiFi");
   // displayPartial("WIFI");
+  DisplayData();
   drawString(4, 0, "WIFI", LEFT);
 
   // FetchJson
@@ -94,7 +102,7 @@ void loop()
 void displayFull(String text)
 {
   display.setRotation(1);
-  display.setFont(&FreeMonoBold9pt7b);
+  // display.setFont(&FreeMonoBold9pt7b);
   if (display.epd2.WIDTH < 104)
     display.setFont(0);
   display.setTextColor(GxEPD_BLACK);
@@ -137,7 +145,7 @@ void displayPartial(String text)
   Serial.println(text);
   display.setPartialWindow(0, 0, display.width(), display.height());
   display.setRotation(1);
-  display.setFont(&FreeMonoBold9pt7b);
+  // display.setFont(&FreeMonoBold9pt7b);
   display.setTextColor(GxEPD_BLACK);
 
   // do this outside of the loop
@@ -246,6 +254,7 @@ void DrawHeadingSection() {
   // drawString(4, 0, "time_str", LEFT);
   // DrawBattery(65, 12);
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  Serial.println("Line OK");  
 }
 
 void drawString(int x, int y, String text, alignment align) {
@@ -257,11 +266,17 @@ void drawString(int x, int y, String text, alignment align) {
   if (align == CENTER) x = x - w / 2;
   u8g2Fonts.setCursor(x, y + h);
   u8g2Fonts.print(text);
+  display.setCursor(x, y + h);
+  display.print(text);
+  Serial.print(text);
+  Serial.println(" OK");
 }
 
 void InitialiseDisplay() {
   display.init(115200, true, 2, false);
   display.setRotation(1);
+  SPI.end();
+  SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);  
   u8g2Fonts.begin(display); // connect u8g2 procedures to Adafruit GFX
   u8g2Fonts.setFontMode(1);                  // use u8g2 transparent mode (this is default)
   u8g2Fonts.setFontDirection(0);             // left to right (this is default)
@@ -270,4 +285,5 @@ void InitialiseDisplay() {
   u8g2Fonts.setFont(u8g2_font_helvB10_tf);   // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
   display.fillScreen(GxEPD_WHITE);
   display.setFullWindow();
+  Serial.println("InitialiseDisplay OK");
 }
