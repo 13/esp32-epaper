@@ -17,6 +17,7 @@
   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   See more at http://www.dsbird.org.uk
 */
+#include <Arduino.h>
 #include "owm_credentials.h"  // See 'owm_credentials' tab and enter your OWM API key and set the Wifi SSID and PASSWORD
 #include <ArduinoJson.h>       // https://github.com/bblanchon/ArduinoJson
 #include <WiFi.h>              // Built-in
@@ -105,6 +106,54 @@ float snow_readings[max_readings]        = {0};
 long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 int  WakeupTime    = 7;  // Don't wakeup until after 07:00 to save battery power
 int  SleepTime     = 23; // Sleep after (23+1) 00:00 to save battery power
+
+void BeginSleep();
+void DisplayWeather();                  // 4.2" e-paper display is 400x300 resolution
+void DrawHeadingSection(); 
+void DrawMainWeatherSection(int x, int y); 
+void DrawForecastSection(int x, int y); 
+void DrawForecastWeather(int x, int y, int index); 
+void DrawMainWx(int x, int y); 
+void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int Cradius); 
+void DrawPressureAndTrend(int x, int y, float pressure, String slope); 
+void DisplayPrecipitationSection(int x, int y); 
+void DrawAstronomySection(int x, int y); 
+void DrawMoon(int x, int y, int dd, int mm, int yy, String hemisphere); 
+void arrow(int x, int y, int asize, float aangle, int pwidth, int plength); 
+void DisplayWXicon(int x, int y, String IconName, bool IconSize); 
+void StopWiFi(); 
+void addcloud(int x, int y, int scale, int linesize); 
+void addraindrop(int x, int y, int scale); 
+void addrain(int x, int y, int scale, bool IconSize); 
+void addsnow(int x, int y, int scale, bool IconSize); 
+void addtstorm(int x, int y, int scale); 
+void addsun(int x, int y, int scale, bool IconSize); 
+void addfog(int x, int y, int scale, int linesize, bool IconSize); 
+void Sunny(int x, int y, bool IconSize, String IconName); 
+void MostlySunny(int x, int y, bool IconSize, String IconName); 
+void MostlyCloudy(int x, int y, bool IconSize, String IconName); 
+void Cloudy(int x, int y, bool IconSize, String IconName); 
+void Rain(int x, int y, bool IconSize, String IconName); 
+void ExpectRain(int x, int y, bool IconSize, String IconName); 
+void ChanceRain(int x, int y, bool IconSize, String IconName); 
+void Tstorms(int x, int y, bool IconSize, String IconName);
+void Snow(int x, int y, bool IconSize, String IconName); 
+void Fog(int x, int y, bool IconSize, String IconName);
+void Haze(int x, int y, bool IconSize, String IconName); 
+void CloudCover(int x, int y, int CCover); 
+void Visibility(int x, int y, String Visi); 
+void addmoon(int x, int y, int scale, bool IconSize); 
+void Nodata(int x, int y, bool IconSize, String IconName); 
+void DrawBattery(int x, int y); 
+void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode); 
+void drawString(int x, int y, String text, alignment align); 
+void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align); 
+void InitialiseDisplay();
+uint8_t StartWiFi();
+boolean SetupTime();
+String WindDegToDirection(float winddirection);
+String MoonPhase(int d, int m, int y);
+boolean UpdateLocalTime();
 
 //#########################################################################################
 void setup() {
