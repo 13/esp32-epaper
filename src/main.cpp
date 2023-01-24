@@ -46,28 +46,26 @@ WiFiClient client; // or WiFiClientSecure for HTTPS
 HTTPClient http;
 
 // MQTT
-void InitialiseMqtt();
+void initMqtt();
 void onMqttConnect(bool sessionPresent);
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 void fetchJson(const char *url);
 
-void BeginSleep();
-void DisplayWeather(); // 4.2" e-paper display is 400x300 resolution
-void DrawHeadingSection();
+void initDisplay();
+void drawSections();
 void drawString(int x, int y, String text, alignment align);
 void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
-void InitialiseDisplay();
-uint8_t StartWiFi();
-void DisplayData();
+void displayData();
+uint8_t startWiFi();
 
 void setup()
 {
   StartTime = millis();
   Serial.begin(115200);
-  if (StartWiFi() == WL_CONNECTED)
+  if (startWiFi() == WL_CONNECTED)
   {
-    InitialiseDisplay(); // Give screen time to initialise by getting weather data!
-    WiFiClient client;   // wifi client object
+    initDisplay();     // Give screen time to initialise by getting weather data!
+    // WiFiClient client; // wifi client object
     u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     drawString(4, 0, "WIFI", LEFT);
 
@@ -75,10 +73,9 @@ void setup()
     fetchJson(http_urls[0]);
 
     // Initialize the MQTT client
-    InitialiseMqtt();
+    initMqtt();
 
-    DisplayData();
-    display.display(false); // Full screen update mode
+    displayData();
   }
 }
 
@@ -87,16 +84,16 @@ void loop()
   // this will never run!
 }
 
-void DrawHeadingSection()
+void drawSections()
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
   display.drawLine(SCREEN_HEIGHT / 1.31, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(SCREEN_HEIGHT / 2, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(SCREEN_HEIGHT / 4, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  display.drawLine(SCREEN_HEIGHT / 2.0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  display.drawLine(SCREEN_HEIGHT / 4.0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
 }
 
-uint8_t StartWiFi()
+uint8_t startWiFi()
 {
   Serial.print("\r\nConnecting to: ");
   Serial.println(String(ssid));
@@ -184,7 +181,7 @@ void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alig
   }
 }
 
-void InitialiseDisplay()
+void initDisplay()
 {
   display.init(115200, true, 2, false);
   display.setRotation(3);
@@ -200,13 +197,14 @@ void InitialiseDisplay()
   display.setFullWindow();
 }
 
-void DisplayData()
+void displayData()
 {
-  DrawHeadingSection(); // Top line of the display
+  drawSections();         // Top line of the display
+  display.display(false); // Full screen update mode
 }
 
 // MQTT
-void InitialiseMqtt()
+void initMqtt()
 {
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onMessage(onMqttMessage);
@@ -286,11 +284,11 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 
     if (doc["N"] == "f9")
     {
-      drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 4, ret, CENTER);
+      drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 4.0, ret, CENTER);
     }
     if (doc["N"] == "3f")
     {
-      drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, ret, CENTER);
+      drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
     }
   }
 
