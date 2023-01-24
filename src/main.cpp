@@ -1,18 +1,16 @@
 #include <Arduino.h>
-#include "credentials.h" // See 'owm_credentials' tab and enter your OWM API key and set the Wifi SSID and PASSWORD
-#include <ArduinoJson.h>     // https://github.com/bblanchon/ArduinoJson
-#include <WiFi.h>            // Built-in
-#include "time.h"            // Built-in
-#include <SPI.h>             // Built-in
+#include "credentials.h" // Wifi SSID and PASSWORD
+#include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
+#include <WiFi.h>        // Built-in
+#include "time.h"        // Built-in
+#include <SPI.h>         // Built-in
 #define ENABLE_GxEPD2_display 0
 #include <GxEPD2_BW.h>
 #include <U8g2_for_Adafruit_GFX.h>
 #include "epaper_fonts.h"
 
-#include <U8g2_for_Adafruit_GFX.h>
 #include <AsyncMqttClient.h>
 #include <HTTPClient.h>
-#include <ArduinoJson.h>
 
 #define SCREEN_WIDTH 300.0 // Set for landscape mode, don't remove the decimal place!
 #define SCREEN_HEIGHT 400.0
@@ -41,13 +39,15 @@ String time_str, date_str; // strings to hold time and received weather data
 int wifi_signal, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0;
 long StartTime = 0;
 
-// ################ PROGRAM VARIABLES and OBJECTS ################
-
+// MQTT
 AsyncMqttClient mqttClient;
+
 // HTTPClient
 WiFiClient client; // or WiFiClientSecure for HTTPS
 HTTPClient http;
 
+// MQTT
+void InitialiseMqtt();
 void onMqttConnect(bool sessionPresent);
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 void fetchJson(const char *url);
@@ -55,19 +55,10 @@ void fetchJson(const char *url);
 void BeginSleep();
 void DisplayWeather(); // 4.2" e-paper display is 400x300 resolution
 void DrawHeadingSection();
-void StopWiFi();
-void addmoon(int x, int y, int scale, bool IconSize);
-void Nodata(int x, int y, bool IconSize, String IconName);
-void DrawBattery(int x, int y);
-void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode);
 void drawString(int x, int y, String text, alignment align);
 void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
 void InitialiseDisplay();
 uint8_t StartWiFi();
-boolean SetupTime();
-String WindDegToDirection(float winddirection);
-String MoonPhase(int d, int m, int y);
-boolean UpdateLocalTime();
 void DisplayData();
 
 // #########################################################################################
@@ -83,20 +74,18 @@ void setup()
     drawString(4, 0, "WIFI", LEFT);
 
     // FetchJson
-    fetchJson(http_url);
+    fetchJson(http_urls[0]);
 
     // Initialize the MQTT client
-    mqttClient.onConnect(onMqttConnect);
-    mqttClient.onMessage(onMqttMessage);
-    mqttClient.setServer(mqtt_server, mqtt_port);
-    mqttClient.connect();
+    InitialiseMqtt();
+
     DisplayData();
     display.display(false); // Full screen update mode
   }
 }
 // #########################################################################################
 void loop()
-{ 
+{
   // this will never run!
 }
 // #########################################################################################
@@ -110,7 +99,7 @@ uint8_t StartWiFi()
 {
   Serial.print("\r\nConnecting to: ");
   Serial.println(String(ssid));
-  IPAddress dns(8, 8, 8, 8); // Google DNS
+  IPAddress dns(192, 168, 22, 6); // Google DNS
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
   WiFi.setAutoConnect(true);
@@ -138,12 +127,22 @@ uint8_t StartWiFi()
     Serial.println("WiFi connected at: " + WiFi.localIP().toString());
   }
   else
+  {
     Serial.println("WiFi connection *** FAILED ***");
+  }
   return connectionStatus;
 }
 
 void drawString(int x, int y, String text, alignment align)
 {
+  char textArray[text.length()+1];
+  text.toCharArray(textArray, text.length()+1);
+  int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
+  int16_t textAscent = u8g2Fonts.getFontAscent();
+  int16_t textDescent = u8g2Fonts.getFontDescent();
+  int16_t boxWidth = textWidth + 2;
+  int16_t boxHeight = textAscent + textDescent + 2;
+
   int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
   uint16_t w, h;
   display.setTextWrap(false);
@@ -152,10 +151,11 @@ void drawString(int x, int y, String text, alignment align)
     x = x - w - 10;
   if (align == CENTER)
     x = x - w / 2;
-  u8g2Fonts.setCursor(x, y + h + 2); // 
+
+  u8g2Fonts.setCursor(x, y + h + 2); //
   u8g2Fonts.print(text);
 }
-// #########################################################################################
+
 void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align)
 {
   int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
@@ -181,7 +181,7 @@ void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alig
     u8g2Fonts.println(secondLine);
   }
 }
-// #########################################################################################
+
 void InitialiseDisplay()
 {
   display.init(115200, true, 2, false);
@@ -204,11 +204,26 @@ void DisplayData()
 }
 
 // MQTT
+void InitialiseMqtt()
+{
+  mqttClient.onConnect(onMqttConnect);
+  mqttClient.onMessage(onMqttMessage);
+  mqttClient.setServer(mqtt_server, mqtt_port);
+  mqttClient.connect();
+}
+
 void onMqttConnect(bool sessionPresent)
 {
-  Serial.println("Connected to MQTT.");
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
-  mqttClient.subscribe(mqtt_topic, 2);
+  Serial.print("Connected to MQTT: ");
+  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  {
+    Serial.print(mqtt_topics[i]);
+    Serial.print(", ");
+    mqttClient.subscribe(mqtt_topics[i], 2);
+  }
+  Serial.println("");
 }
 
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
@@ -236,7 +251,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-  display.display(false);
+  // display.display(false);
 }
 
 // Fetch
