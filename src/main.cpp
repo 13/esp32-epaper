@@ -64,13 +64,19 @@ void setup()
   Serial.begin(115200);
   if (startWiFi() == WL_CONNECTED)
   {
-    initDisplay();     // Give screen time to initialise by getting weather data!
+    initDisplay(); // Give screen time to initialise by getting weather data!
     // WiFiClient client; // wifi client object
     u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     drawString(4, 0, "WIFI", LEFT);
 
     // FetchJson
-    fetchJson(http_urls[0]);
+    for (int i = 0; i < sizeof(http_urls) / sizeof(http_urls[0]); i++)
+    {
+      Serial.print("Fetching ");
+      Serial.print(http_urls[i]);
+      Serial.println(" ...");
+      fetchJson(http_urls[i]);
+    }
 
     // Initialize the MQTT client
     initMqtt();
@@ -321,17 +327,10 @@ void fetchJson(const char *url)
 
   String ret;
 
-  // Read values
-  /*Serial.println(F("Response:"));
-  Serial.println(doc["sensor"].as<const char *>());
-  Serial.println(doc["time"].as<long>());
-  Serial.println(doc["data"][0].as<float>(), 6);
-  Serial.println(doc["data"][1].as<float>(), 6);*/
-
   if (doc.containsKey("switch:0"))
   {
     bool output = doc["switch:0"]["output"];
-    String ret = "HEIZUNG: ";
+    ret = "HEIZUNG: ";
     ret += output;
     drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
     // u8g2Fonts.setFont(u8g2_font_helvB24_tf);
