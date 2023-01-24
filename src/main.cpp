@@ -35,8 +35,7 @@ GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=D8*/ EPD_CS, /
 
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts; // Select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
 
-String time_str, date_str; // strings to hold time and received weather data
-int wifi_signal, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0;
+int wifi_signal;
 long StartTime = 0;
 
 // MQTT
@@ -135,8 +134,8 @@ uint8_t StartWiFi()
 
 void drawString(int x, int y, String text, alignment align)
 {
-  char textArray[text.length()+1];
-  text.toCharArray(textArray, text.length()+1);
+  char textArray[text.length() + 1];
+  text.toCharArray(textArray, text.length() + 1);
   int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
   int16_t textAscent = u8g2Fonts.getFontAscent();
   int16_t textDescent = u8g2Fonts.getFontDescent();
@@ -152,6 +151,7 @@ void drawString(int x, int y, String text, alignment align)
   if (align == CENTER)
     x = x - w / 2;
 
+  display.drawRect(x, y, boxWidth, boxHeight, GxEPD_WHITE);
   u8g2Fonts.setCursor(x, y + h + 2); //
   u8g2Fonts.print(text);
 }
@@ -199,7 +199,7 @@ void InitialiseDisplay()
 }
 
 void DisplayData()
-{                       // 4.2" e-paper display is 400x300 resolution
+{
   DrawHeadingSection(); // Top line of the display
 }
 
@@ -234,24 +234,36 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   serializeJsonPretty(doc, Serial);
   Serial.println();
 
-  /*float t1 = doc["T1"];
-  float t2 = doc["T2"];
-  float t3 = doc["T3"];
-  String output = "T1: ";
-  output += t1;
-  output += " T2: ";
-  output += t2;
-  output += " T3: ";
-  output += t3;*/
-
-  bool output = doc["output"];
-  String ret = "HEIZUNG: ";
-  ret += output;
-  Serial.println(ret);
-
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-  // display.display(false);
+  String ret;
+
+  if (doc.containsKey("T1"))
+  {
+    float t1 = doc["T1"];
+    ret += "T1: ";
+    ret += t1;
+    /*float t2 = doc["T2"];
+    float t3 = doc["T3"];
+    String output = "T1: ";
+    output += t1;
+    output += " T2: ";
+    output += t2;
+    output += " T3: ";
+    output += t3;*/
+  }
+
+  if (doc.containsKey("output"))
+  {
+    bool output = doc["output"];
+    ret += "HEIZUNG: ";
+    ret += output;
+    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+  }
+  if (!ret.isEmpty())
+  {
+    Serial.println(ret);
+    display.display(true);
+  }
 }
 
 // Fetch
@@ -265,6 +277,9 @@ void fetchJson(const char *url)
   DynamicJsonDocument doc(2048);
   deserializeJson(doc, http.getStream());
 
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  String ret;
+
   // Read values
   /*Serial.println(F("Response:"));
   Serial.println(doc["sensor"].as<const char *>());
@@ -272,14 +287,19 @@ void fetchJson(const char *url)
   Serial.println(doc["data"][0].as<float>(), 6);
   Serial.println(doc["data"][1].as<float>(), 6);*/
 
-  bool output = doc["switch:0"]["output"];
-  String ret = "HEIZUNG: ";
-  ret += output;
+  if (doc.containsKey("switch:0"))
+  {
+    bool output = doc["switch:0"]["output"];
+    String ret = "HEIZUNG: ";
+    ret += output;
+  }
+  if (!ret.isEmpty())
+  {
+    Serial.println(ret);
+    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+    display.display(true);
+  }
 
-  Serial.println(ret);
-
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
   // Disconnect
   http.end();
 }
