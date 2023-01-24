@@ -60,7 +60,6 @@ void InitialiseDisplay();
 uint8_t StartWiFi();
 void DisplayData();
 
-// #########################################################################################
 void setup()
 {
   StartTime = millis();
@@ -82,18 +81,18 @@ void setup()
     display.display(false); // Full screen update mode
   }
 }
-// #########################################################################################
+
 void loop()
 {
   // this will never run!
 }
-// #########################################################################################
+
 void DrawHeadingSection()
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
 }
-// #########################################################################################
+
 uint8_t StartWiFi()
 {
   Serial.print("\r\nConnecting to: ");
@@ -234,22 +233,62 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   serializeJsonPretty(doc, Serial);
   Serial.println();
 
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   String ret;
 
-  if (doc.containsKey("T1"))
+  if (doc.containsKey("N"))
   {
-    float t1 = doc["T1"];
-    ret += "T1: ";
-    ret += t1;
-    /*float t2 = doc["T2"];
-    float t3 = doc["T3"];
-    String output = "T1: ";
-    output += t1;
-    output += " T2: ";
-    output += t2;
-    output += " T3: ";
-    output += t3;*/
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+    if (doc.containsKey("T1"))
+    {
+      float t1 = doc["T1"];
+      ret += "T1: ";
+      ret += t1;
+      ret += " ";
+    }
+    if (doc.containsKey("T2"))
+    {
+      float t2 = doc["T2"];
+      ret += "T2: ";
+      ret += t2;
+      ret += " ";
+    }
+    if (doc.containsKey("T3"))
+    {
+      float t3 = doc["T3"];
+      ret += "T3: ";
+      ret += t3;
+      ret += " ";
+    }
+    if (doc.containsKey("T4"))
+    {
+      float t4 = doc["T4"];
+      ret += "T4: ";
+      ret += t4;
+      ret += " ";
+    }
+    if (doc.containsKey("H1"))
+    {
+      float h1 = doc["H1"];
+      ret += "H1: ";
+      ret += h1;
+      ret += " ";
+    }
+    if (doc.containsKey("H4"))
+    {
+      float h4 = doc["H4"];
+      ret += "H4: ";
+      ret += h4;
+      ret += " ";
+    }
+
+    if (doc["N"] == "f9")
+    {
+      drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 4, ret, CENTER);
+    }
+    if (doc["N"] == "3f")
+    {
+      drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, ret, CENTER);
+    }
   }
 
   if (doc.containsKey("output"))
@@ -257,7 +296,9 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
     bool output = doc["output"];
     ret += "HEIZUNG: ";
     ret += output;
+    u8g2Fonts.setFont(u8g2_font_helvB12_tf);
     drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+    drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
   }
   if (!ret.isEmpty())
   {
@@ -277,7 +318,6 @@ void fetchJson(const char *url)
   DynamicJsonDocument doc(2048);
   deserializeJson(doc, http.getStream());
 
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   String ret;
 
   // Read values
@@ -292,11 +332,14 @@ void fetchJson(const char *url)
     bool output = doc["switch:0"]["output"];
     String ret = "HEIZUNG: ";
     ret += output;
+    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+    // u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+    u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+    drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
   }
   if (!ret.isEmpty())
   {
     Serial.println(ret);
-    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
     display.display(true);
   }
 
