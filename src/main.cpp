@@ -54,6 +54,7 @@ void fetchJson(const char *url);
 void initDisplay();
 void drawSections();
 void drawString(int x, int y, String text, alignment align);
+void drawStringLine(int x, int y, String text, alignment align);
 void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
 void displayData();
 uint8_t startWiFi();
@@ -94,8 +95,8 @@ void drawSections()
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(SCREEN_HEIGHT / 1.31, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(SCREEN_HEIGHT / 2.0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  display.drawLine(50 / 1.31, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  display.drawLine(SCREEN_HEIGHT * 2.0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
   display.drawLine(SCREEN_HEIGHT / 4.0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
 }
 
@@ -139,13 +140,14 @@ uint8_t startWiFi()
 
 void drawString(int x, int y, String text, alignment align)
 {
+  // u8g2Fonts.setFont(u8g2_font_helvB24_tf);
   char textArray[text.length() + 1];
   text.toCharArray(textArray, text.length() + 1);
   int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
   int16_t textAscent = u8g2Fonts.getFontAscent();
   int16_t textDescent = u8g2Fonts.getFontDescent();
   int16_t boxWidth = textWidth + 2;
-  int16_t boxHeight = textAscent + textDescent + 2;
+  int16_t boxHeight = textAscent + textDescent + 10;
 
   int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
   uint16_t w, h;
@@ -154,10 +156,43 @@ void drawString(int x, int y, String text, alignment align)
   if (align == RIGHT)
     x = x - w - 10;
   if (align == CENTER)
-    x = x - w / 2;
+  {
+    // x = x - w / 2;
+    x = x - textWidth / 2;
+  }
+  display.fillRect(x, y - h * 2, boxWidth, boxHeight, GxEPD_WHITE);
+  display.display(true);
+  u8g2Fonts.setCursor(x, y + h + 2); // +2
 
-  display.drawRect(x, y, boxWidth, boxHeight, GxEPD_WHITE);
-  u8g2Fonts.setCursor(x, y + h + 2); //
+  u8g2Fonts.print(text);
+}
+
+void drawStringLine(int x, int y, String text, alignment align)
+{
+  // u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+  char textArray[text.length() + 1];
+  text.toCharArray(textArray, text.length() + 1);
+  int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
+  int16_t textAscent = u8g2Fonts.getFontAscent();
+  int16_t textDescent = u8g2Fonts.getFontDescent();
+  int16_t boxWidth = textWidth + 2;
+  int16_t boxHeight = textAscent + textDescent + 10;
+
+  int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
+  uint16_t w, h;
+  display.setTextWrap(false);
+  display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
+  if (align == RIGHT)
+    x = x - w - 10;
+  if (align == CENTER)
+  {
+    // x = x - w / 2;
+    x = x - textWidth / 2;
+  }
+  display.fillRect(0, y - h * 2, SCREEN_WIDTH, boxHeight, GxEPD_WHITE);
+  display.display(true);
+  u8g2Fonts.setCursor(x, y + h + 2); // +2
+
   u8g2Fonts.print(text);
 }
 
@@ -205,8 +240,8 @@ void initDisplay()
 
 void displayData()
 {
-  drawSections();         // Top line of the display
-  display.display(false); // Full screen update mode
+  drawSections();        // Top line of the display
+  display.display(true); // Full screen update mode
 }
 
 // MQTT
@@ -222,6 +257,7 @@ void onMqttConnect(bool sessionPresent)
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
+  display.display(true);
   Serial.print("Connected to MQTT: ");
   for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
   {
@@ -244,57 +280,40 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 
   if (doc.containsKey("N"))
   {
-    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-    if (doc.containsKey("T1"))
+    u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+    if (doc["N"] == "22")
     {
-      float t1 = doc["T1"];
-      ret += "T1: ";
-      ret += t1;
-      ret += " ";
-    }
-    if (doc.containsKey("T2"))
-    {
-      float t2 = doc["T2"];
-      ret += "T2: ";
-      ret += t2;
-      ret += " ";
-    }
-    if (doc.containsKey("T3"))
-    {
-      float t3 = doc["T3"];
-      ret += "T3: ";
-      ret += t3;
-      ret += " ";
-    }
-    if (doc.containsKey("T4"))
-    {
-      float t4 = doc["T4"];
-      ret += "T4: ";
-      ret += t4;
-      ret += " ";
-    }
-    if (doc.containsKey("H1"))
-    {
-      float h1 = doc["H1"];
-      ret += "H1: ";
-      ret += h1;
-      ret += " ";
-    }
-    if (doc.containsKey("H4"))
-    {
-      float h4 = doc["H4"];
-      ret += "H4: ";
-      ret += h4;
-      ret += " ";
-    }
-
-    if (doc["N"] == "f9")
-    {
-      drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 4.0, ret, CENTER);
+      if (doc.containsKey("T2") && doc.containsKey("T4"))
+      {
+        float t2 = doc["T2"];
+        float t4 = doc["T4"];
+        ret += String((t2 + t4) / 2, 1);
+        ret += "° ";
+      }
+      if (doc.containsKey("H4"))
+      {
+        float h1 = doc["H4"];
+        ret += String(h1, 1);
+        ret += "%";
+      }
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
     }
     if (doc["N"] == "3f")
     {
-      drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
+      if (doc.containsKey("T1") && doc.containsKey("T2"))
+      {
+        float t1 = doc["T1"];
+        float t2 = doc["T2"];
+        ret += String((t1 + t2) / 2, 1);
+        ret += "° ";
+      }
+      if (doc.containsKey("H1"))
+      {
+        float h1 = doc["H1"];
+        ret += String(h1, 1);
+        ret += "%";
+      }
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 4.0, ret, CENTER);
     }
   }
 
@@ -302,10 +321,11 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   {
     bool output = doc["output"];
     ret += "HEIZUNG: ";
-    ret += output;
-    u8g2Fonts.setFont(u8g2_font_helvB12_tf);
-    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
+    ret += output ? "Ein" : "Aus";
+    // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+    // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+    u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+    drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
   }
   if (!ret.isEmpty())
   {
@@ -331,11 +351,10 @@ void fetchJson(const char *url)
   {
     bool output = doc["switch:0"]["output"];
     ret = "HEIZUNG: ";
-    ret += output;
-    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    // u8g2Fonts.setFont(u8g2_font_helvB24_tf);
-    u8g2Fonts.setFont(u8g2_font_helvB12_tf);
-    drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
+    ret += output ? "Ein" : "Aus";
+    // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+    u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+    drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
   }
   if (!ret.isEmpty())
   {
