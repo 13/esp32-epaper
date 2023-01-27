@@ -45,6 +45,9 @@ AsyncMqttClient mqttClient;
 WiFiClient client; // or WiFiClientSecure for HTTPS
 HTTPClient http;
 
+// Led Pin
+const int ledPin = 2;
+
 // MQTT
 void initMqtt();
 void onMqttConnect(bool sessionPresent);
@@ -58,11 +61,16 @@ void drawStringLine(int x, int y, String text, alignment align);
 void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
 void displayData();
 uint8_t startWiFi();
+void blinkLED();
 
 void setup()
 {
   StartTime = millis();
   Serial.begin(115200);
+
+  pinMode(ledPin, OUTPUT);
+  blinkLED();
+
   if (startWiFi() == WL_CONNECTED)
   {
     initDisplay(); // Give screen time to initialise by getting weather data!
@@ -89,6 +97,17 @@ void setup()
 void loop()
 {
   // this will never run!
+}
+
+void blinkLED()
+{
+  for (int i = 0; i < 3; i++)
+  {
+    digitalWrite(ledPin, HIGH);
+    delay(50);
+    digitalWrite(ledPin, LOW);
+    delay(50);
+  }
 }
 
 void drawSections()
@@ -331,6 +350,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   {
     Serial.println(ret);
     display.display(true);
+    blinkLED();
   }
 }
 
@@ -360,6 +380,7 @@ void fetchJson(const char *url)
   {
     Serial.println(ret);
     display.display(true);
+    blinkLED();
   }
 
   // Disconnect
