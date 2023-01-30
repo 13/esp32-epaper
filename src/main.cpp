@@ -12,6 +12,10 @@
 #include <AsyncMqttClient.h>
 #include <HTTPClient.h>
 
+/* TODO: add font sanfrancisco, add time */
+
+// #define DEBUG
+
 #define SCREEN_WIDTH 300.0 // Set for landscape mode, don't remove the decimal place!
 #define SCREEN_HEIGHT 400.0
 
@@ -116,9 +120,10 @@ void drawSections()
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(0, SCREEN_HEIGHT / 1.31, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(0, SCREEN_HEIGHT / 2.0, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(0, SCREEN_HEIGHT / 4.0, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  display.drawLine(0, (SCREEN_HEIGHT / 2.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.0) + 10, GxEPD_BLACK);
+  display.drawLine(0, (SCREEN_HEIGHT / 4.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 4.0) + 10, GxEPD_BLACK);
+  display.drawLine(0, (SCREEN_HEIGHT / 1.31) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.31) + 10, GxEPD_BLACK);
+  // display.drawLine(0, (SCREEN_HEIGHT / 1.03) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.03) + 10, GxEPD_BLACK);
 }
 
 uint8_t startWiFi()
@@ -198,7 +203,9 @@ void drawStringLine(int x, int y, String text, alignment align)
   int16_t textDescent = u8g2Fonts.getFontDescent();
   int16_t boxWidth = textWidth + 2;
   int16_t boxHeight = textAscent + textDescent + 10;
-
+#ifdef DEBUG
+  Serial.printf("drawStringLine box:\ntxtW: %d, txtAsc: %d, txtDesc: %d, boxW: %d, boxH: %d\n", textWidth, textAscent, textDescent, boxWidth, boxHeight);
+#endif
   int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
   uint16_t w, h;
   display.setTextWrap(false);
@@ -210,7 +217,12 @@ void drawStringLine(int x, int y, String text, alignment align)
     // x = x - w / 2;
     x = x - textWidth / 2;
   }
+
+#ifdef DEBUG
+  display.drawRect(0, y - h * 4, SCREEN_WIDTH, boxHeight, GxEPD_BLACK);
+#else
   display.fillRect(0, y - h * 2, SCREEN_WIDTH, boxHeight, GxEPD_WHITE);
+#endif
   display.display(true);
   u8g2Fonts.setCursor(x, y + h + 2); // +2
 
@@ -301,7 +313,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 
   if (doc.containsKey("N"))
   {
-    u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+    u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
     if (doc["N"] == "22")
     {
       if (doc.containsKey("T2") && doc.containsKey("T4"))
@@ -317,7 +329,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
         ret += String(h1, 1);
         ret += "%";
       }
-      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
     }
     if (doc["N"] == "3f")
     {
@@ -334,7 +346,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
         ret += String(h1, 1);
         ret += "%";
       }
-      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 4.0, ret, CENTER);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
     }
   }
 
@@ -345,7 +357,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
     ret += output ? "Ein" : "Aus";
     // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+    u8g2Fonts.setFont(Roboto_Mono_Medium_32);
     drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
   }
   if (!ret.isEmpty())
@@ -375,7 +387,7 @@ void fetchJson(const char *url)
     ret = "HEIZUNG: ";
     ret += output ? "Ein" : "Aus";
     // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+    u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
     drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
   }
   if (!ret.isEmpty())
