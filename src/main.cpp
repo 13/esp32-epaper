@@ -116,9 +116,9 @@ void drawSections()
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(50 / 1.31, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(SCREEN_HEIGHT * 2.0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(SCREEN_HEIGHT / 4.0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  display.drawLine(0, SCREEN_HEIGHT / 1.31, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  display.drawLine(0, SCREEN_HEIGHT / 2.0, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  display.drawLine(0, SCREEN_HEIGHT / 4.0, SCREEN_WIDTH, 12, GxEPD_BLACK);
 }
 
 uint8_t startWiFi()
