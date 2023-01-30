@@ -357,7 +357,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
     ret += output ? "Ein" : "Aus";
     // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    u8g2Fonts.setFont(Roboto_Mono_Medium_32);
+    u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
     drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
   }
   if (!ret.isEmpty())
