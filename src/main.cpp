@@ -71,6 +71,8 @@ void setup()
   pinMode(ledPin, OUTPUT);
   blinkLED();
 
+  display.display(false); // reset screen
+
   if (startWiFi() == WL_CONNECTED)
   {
     initDisplay(); // Give screen time to initialise by getting weather data!
