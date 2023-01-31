@@ -12,3 +12,8 @@ const char* mqtt_topics[] = { "shellies/HZ_DG/status/switch:0",
                               "sensors/3f/json" };
 // Fetch URLs
 const char* http_urls[] = { "http://192.168.22.70/rpc/Shelly.GetStatus" };
+
+// Time
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 0;
+const int   daylightOffset_sec = 3600;

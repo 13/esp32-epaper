@@ -66,6 +66,7 @@ void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alig
 void displayData();
 uint8_t startWiFi();
 void blinkLED();
+void printLocalTime();
 
 void setup()
 {
@@ -83,6 +84,10 @@ void setup()
     // WiFiClient client; // wifi client object
     u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     drawString(4, 0, "WIFI", LEFT);
+
+    // Time
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    printLocalTime();
 
     // FetchJson
     for (int i = 0; i < sizeof(http_urls) / sizeof(http_urls[0]); i++)
@@ -363,6 +368,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   if (!ret.isEmpty())
   {
     Serial.println(ret);
+    printLocalTime();
     display.display(true);
     blinkLED();
   }
@@ -399,4 +405,47 @@ void fetchJson(const char *url)
 
   // Disconnect
   http.end();
+}
+
+void printLocalTime()
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  Serial.print("Day of week: ");
+  Serial.println(&timeinfo, "%A");
+  Serial.print("Month: ");
+  Serial.println(&timeinfo, "%B");
+  Serial.print("Day of Month: ");
+  Serial.println(&timeinfo, "%d");
+  Serial.print("Year: ");
+  Serial.println(&timeinfo, "%Y");
+  Serial.print("Hour: ");
+  Serial.println(&timeinfo, "%H");
+  Serial.print("Hour (12 hour format): ");
+  Serial.println(&timeinfo, "%I");
+  Serial.print("Minute: ");
+  Serial.println(&timeinfo, "%M");
+  Serial.print("Second: ");
+  Serial.println(&timeinfo, "%S");
+
+  Serial.println("Time variables");
+  char timeHour[3];
+  strftime(timeHour, 3, "%H", &timeinfo);
+  Serial.println(timeHour);
+  char timeWeekDay[10];
+  strftime(timeWeekDay, 10, "%A", &timeinfo);
+  Serial.println(timeWeekDay);
+  Serial.println();
+
+  char timeBuff[6];
+  strftime(timeBuff, sizeof(timeBuff), "%H:%M", &timeinfo);
+  String ret = timeBuff;
+
+  u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
+  drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 4.0, ret, CENTER);
 }
