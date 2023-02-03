@@ -11,6 +11,8 @@
 
 #include <AsyncMqttClient.h>
 #include <HTTPClient.h>
+#include <ArduinoOTA.h>
+#include <ESPmDNS.h>
 
 /* TODO: add font sanfrancisco, add time */
 
@@ -80,6 +82,10 @@ void setup()
 
   if (startWiFi() == WL_CONNECTED)
   {
+    if (MDNS.begin(hostname))
+    {
+      Serial.println("MDNS responder started");
+    }
     initDisplay(); // Give screen time to initialise by getting weather data!
     // WiFiClient client; // wifi client object
     u8g2Fonts.setFont(u8g2_font_helvB08_tf);
@@ -87,7 +93,7 @@ void setup()
 
     // Time
     // configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
-    configTzTime(time_zone, ntpServer1, ntpServer2);
+    configTzTime(time_zone, ntpServers[0], ntpServers[1]);
     printLocalTime();
 
     // FetchJson
@@ -109,6 +115,7 @@ void setup()
 void loop()
 {
   // this will never run!
+  ArduinoOTA.poll();
 }
 
 void blinkLED()
@@ -136,12 +143,12 @@ uint8_t startWiFi()
 {
   Serial.print("\r\nConnecting to: ");
   Serial.println(String(ssid));
-  IPAddress dns(192, 168, 22, 6); // Google DNS
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
   WiFi.begin(ssid, password);
+  WiFi.config(ip, gw, sn, dns1);
   unsigned long start = millis();
   uint8_t connectionStatus;
   bool AttemptConnection = true;
@@ -162,6 +169,8 @@ uint8_t startWiFi()
   {
     wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
     Serial.println("WiFi connected at: " + WiFi.localIP().toString());
+    // start the WiFi OTA library with internal (flash) based storage
+    ArduinoOTA.begin(WiFi.localIP(), "Arduino", "password", InternalStorage);
   }
   else
   {
@@ -417,7 +426,7 @@ void printLocalTime()
     return;
   }
   Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-  
+
   char timeBuff[6];
   strftime(timeBuff, sizeof(timeBuff), "%H:%M", &timeinfo);
   String ret = timeBuff;
