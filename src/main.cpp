@@ -7,14 +7,15 @@
 #define ENABLE_GxEPD2_display 0
 #include <GxEPD2_BW.h>
 #include <U8g2_for_Adafruit_GFX.h>
-#include "epaper_fonts.h"
+#include "SFProTextBold32.h"
+#include "SFProTextBold55.h"
 
 #include <AsyncMqttClient.h>
 #include <HTTPClient.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 
-/* TODO: add font sanfrancisco, add time */
+/* TODO: add time */
 
 // #define DEBUG
 
@@ -74,6 +75,15 @@ void setup()
 {
   StartTime = millis();
   Serial.begin(115200);
+  delay(10);
+#ifdef VERBOSE
+  delay(20);
+#endif
+  // Start Boot
+  Serial.println(F("> "));
+  Serial.println(F("> "));
+  Serial.print(F("> Booting... Compiled: "));
+  Serial.println(F(__TIMESTAMP__));
 
   pinMode(ledPin, OUTPUT);
   blinkLED();
@@ -132,10 +142,11 @@ void blinkLED()
 void drawSections()
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  display.drawLine(0, (SCREEN_HEIGHT / 2.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.0) + 10, GxEPD_BLACK);
-  display.drawLine(0, (SCREEN_HEIGHT / 4.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 4.0) + 10, GxEPD_BLACK);
-  display.drawLine(0, (SCREEN_HEIGHT / 1.31) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.31) + 10, GxEPD_BLACK);
+  /*display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+   display.drawLine(0, (SCREEN_HEIGHT / 2.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.0) + 10, GxEPD_BLACK);
+   display.drawLine(0, (SCREEN_HEIGHT / 4.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 4.0) + 10, GxEPD_BLACK);
+   display.drawLine(0, (SCREEN_HEIGHT / 1.31) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.31) + 10, GxEPD_BLACK);
+   */
   // display.drawLine(0, (SCREEN_HEIGHT / 1.03) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.03) + 10, GxEPD_BLACK);
 }
 
@@ -188,7 +199,7 @@ void drawString(int x, int y, String text, alignment align)
   int16_t textAscent = u8g2Fonts.getFontAscent();
   int16_t textDescent = u8g2Fonts.getFontDescent();
   int16_t boxWidth = textWidth + 2;
-  int16_t boxHeight = textAscent + textDescent + 10;
+  int16_t boxHeight = textAscent + textDescent + 15; // 10
 
   int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
   uint16_t w, h;
@@ -217,7 +228,7 @@ void drawStringLine(int x, int y, String text, alignment align)
   int16_t textAscent = u8g2Fonts.getFontAscent();
   int16_t textDescent = u8g2Fonts.getFontDescent();
   int16_t boxWidth = textWidth + 2;
-  int16_t boxHeight = textAscent + textDescent + 10;
+  int16_t boxHeight = textAscent - textDescent + 4; // + textDescent + 15; // 10
 #ifdef DEBUG
   Serial.printf("drawStringLine box:\ntxtW: %d, txtAsc: %d, txtDesc: %d, boxW: %d, boxH: %d\n", textWidth, textAscent, textDescent, boxWidth, boxHeight);
 #endif
@@ -225,6 +236,9 @@ void drawStringLine(int x, int y, String text, alignment align)
   uint16_t w, h;
   display.setTextWrap(false);
   display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
+#ifdef DEBUG
+  Serial.printf("drawStringLine text:\nx: %d, y: %d, x1: %d, y1: %d, w: %d, h: %d\n", x, y, &x1, &y1, &w, &h);
+#endif
   if (align == RIGHT)
     x = x - w - 10;
   if (align == CENTER)
@@ -234,9 +248,12 @@ void drawStringLine(int x, int y, String text, alignment align)
   }
 
 #ifdef DEBUG
-  display.drawRect(0, y - h * 4, SCREEN_WIDTH, boxHeight, GxEPD_BLACK);
+  display.drawRect(0, y + h - boxHeight + 8, SCREEN_WIDTH, boxHeight, GxEPD_BLACK);
+  // display.drawRect(0, y, SCREEN_WIDTH, boxHeight, GxEPD_BLACK); // y - h * 4
 #else
-  display.fillRect(0, y - h * 2, SCREEN_WIDTH, boxHeight, GxEPD_WHITE);
+  display.fillRect(0, y + h - boxHeight + 8, SCREEN_WIDTH, boxHeight, GxEPD_WHITE);
+  display.drawLine(0, y + h - boxHeight + 8, SCREEN_WIDTH, y + h - boxHeight + 8, GxEPD_BLACK);
+  // display.fillRect(0, y - h * 2, SCREEN_WIDTH, boxHeight, GxEPD_WHITE);
 #endif
   display.display(true);
   u8g2Fonts.setCursor(x, y + h + 2); // +2
@@ -328,7 +345,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 
   if (doc.containsKey("N"))
   {
-    u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
+    u8g2Fonts.setFont(SFProTextBold32);
     if (doc["N"] == "22")
     {
       if (doc.containsKey("T2") && doc.containsKey("T4"))
@@ -368,11 +385,11 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   if (doc.containsKey("output"))
   {
     bool output = doc["output"];
-    ret += "HEIZUNG: ";
+    ret += "HZG: ";
     ret += output ? "Ein" : "Aus";
     // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
+    u8g2Fonts.setFont(SFProTextBold32);
     drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
   }
   if (!ret.isEmpty())
@@ -400,10 +417,11 @@ void fetchJson(const char *url)
   if (doc.containsKey("switch:0"))
   {
     bool output = doc["switch:0"]["output"];
-    ret = "HEIZUNG: ";
+    ret = "HZG: ";
     ret += output ? "Ein" : "Aus";
     // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
+    // u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
+    u8g2Fonts.setFont(SFProTextBold32);
     drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
   }
   if (!ret.isEmpty())
@@ -431,6 +449,8 @@ void printLocalTime()
   strftime(timeBuff, sizeof(timeBuff), "%H:%M", &timeinfo);
   String ret = timeBuff;
 
-  u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
-  drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 4.0, ret, CENTER);
+  // u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
+  u8g2Fonts.setFont(SFProTextBold55);
+  drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 5.0, ret, CENTER);
+  // drawStringLine(SCREEN_WIDTH / 2, 12, ret, CENTER);
 }
