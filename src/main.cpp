@@ -118,6 +118,45 @@ void setup()
     // Initialize the MQTT client
     initMqtt();
 
+    // ArduinoOTA
+    // Port defaults to 3232
+    // ArduinoOTA.setPort(3232);
+
+    // Hostname defaults to esp3232-[MAC]
+    ArduinoOTA.setHostname(hostname);
+
+    // No authentication by default
+    // ArduinoOTA.setPassword("admin");
+
+    // Password can be set with it's md5 value as well
+    // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+    // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+    ArduinoOTA
+        .onStart([]()
+                 {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("Start updating " + type); })
+        .onEnd([]()
+               { Serial.println("\nEnd"); })
+        .onProgress([](unsigned int progress, unsigned int total)
+                    { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
+        .onError([](ota_error_t error)
+                 {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed"); });
+
+    ArduinoOTA.begin();
+
     displayData();
   }
 }
@@ -125,7 +164,7 @@ void setup()
 void loop()
 {
   // this will never run!
-  ArduinoOTA.poll();
+  ArduinoOTA.handle();
 }
 
 void blinkLED()
@@ -153,12 +192,12 @@ void drawSections()
 uint8_t startWiFi()
 {
   Serial.print("\r\nConnecting to: ");
-  Serial.println(String(ssid));
+  Serial.println(String(wifi_ssid));
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
-  WiFi.begin(ssid, password);
+  WiFi.begin(wifi_ssid, wifi_pass);
   WiFi.config(ip, gw, sn, dns1);
   unsigned long start = millis();
   uint8_t connectionStatus;
@@ -180,8 +219,6 @@ uint8_t startWiFi()
   {
     wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
     Serial.println("WiFi connected at: " + WiFi.localIP().toString());
-    // start the WiFi OTA library with internal (flash) based storage
-    ArduinoOTA.begin(WiFi.localIP(), "Arduino", "password", InternalStorage);
   }
   else
   {
