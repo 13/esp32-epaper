@@ -101,7 +101,7 @@ void setup()
     }
     initDisplay(); // Give screen time to initialise by getting weather data!
     // WiFiClient client; // wifi client object
-    u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     drawString(4, 0, "WiFi", LEFT);
 
     // Time
@@ -184,7 +184,7 @@ void blinkLED()
 
 void drawSections()
 {
-  // u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+  // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   /*display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
    display.drawLine(0, (SCREEN_HEIGHT / 2.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.0) + 10, GxEPD_BLACK);
    display.drawLine(0, (SCREEN_HEIGHT / 4.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 4.0) + 10, GxEPD_BLACK);
@@ -314,7 +314,7 @@ void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alig
   u8g2Fonts.setCursor(x, y);
   if (text.length() > text_width * 2)
   {
-    u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     text_width = 42;
     y = y - 3;
   }
@@ -339,7 +339,7 @@ void initDisplay()
   u8g2Fonts.setFontDirection(0);             // left to right (this is default)
   u8g2Fonts.setForegroundColor(GxEPD_BLACK); // apply Adafruit GFX color
   u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // apply Adafruit GFX color
-  u8g2Fonts.setFont(u8g2_font_helvB10_tf);   // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);   // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
   display.fillScreen(GxEPD_WHITE);
   display.setFullWindow();
 }
@@ -361,7 +361,7 @@ void initMqtt()
 
 void onMqttConnect(bool sessionPresent)
 {
-  u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
   display.display(true);
   Serial.print("Connected to MQTT: ");
@@ -503,7 +503,7 @@ void printLocalTime(boolean updateTime)
   }
   else
   {
-    u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
     // drawStringLine(SCREEN_WIDTH / 2, 12, ret, CENTER);
   }
