@@ -44,6 +44,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts; // Select u8g2 font from here: https://github.c
 
 int wifi_signal;
 long StartTime = 0;
+unsigned long previousMinute = 0;
 
 // MQTT
 AsyncMqttClient mqttClient;
@@ -70,6 +71,8 @@ void displayData();
 uint8_t startWiFi();
 void blinkLED();
 void printLocalTime();
+void printLocalTime(boolean updateTime);
+void loopTime();
 
 void setup()
 {
@@ -98,13 +101,13 @@ void setup()
     }
     initDisplay(); // Give screen time to initialise by getting weather data!
     // WiFiClient client; // wifi client object
-    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-    drawString(4, 0, "WIFI", LEFT);
+    u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+    drawString(4, 0, "WiFi", LEFT);
 
     // Time
     // configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
     configTzTime(time_zone, ntpServers[0], ntpServers[1]);
-    printLocalTime();
+    printLocalTime(true);
 
     // FetchJson
     for (int i = 0; i < sizeof(http_urls) / sizeof(http_urls[0]); i++)
@@ -164,6 +167,7 @@ void setup()
 void loop()
 {
   // this will never run!
+  loopTime();
   ArduinoOTA.handle();
 }
 
@@ -180,7 +184,7 @@ void blinkLED()
 
 void drawSections()
 {
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  // u8g2Fonts.setFont(u8g2_font_helvB10_tf);
   /*display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
    display.drawLine(0, (SCREEN_HEIGHT / 2.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.0) + 10, GxEPD_BLACK);
    display.drawLine(0, (SCREEN_HEIGHT / 4.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 4.0) + 10, GxEPD_BLACK);
@@ -357,7 +361,7 @@ void initMqtt()
 
 void onMqttConnect(bool sessionPresent)
 {
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  u8g2Fonts.setFont(u8g2_font_helvB10_tf);
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
   display.display(true);
   Serial.print("Connected to MQTT: ");
@@ -474,6 +478,11 @@ void fetchJson(const char *url)
 
 void printLocalTime()
 {
+  printLocalTime(false);
+}
+
+void printLocalTime(boolean updateTime)
+{
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo))
   {
@@ -487,7 +496,30 @@ void printLocalTime()
   String ret = timeBuff;
 
   // u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
-  u8g2Fonts.setFont(SFProTextBold55);
-  drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 5.0, ret, CENTER);
-  // drawStringLine(SCREEN_WIDTH / 2, 12, ret, CENTER);
+  if (updateTime)
+  {
+    u8g2Fonts.setFont(SFProTextBold55);
+    drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 5.0, ret, CENTER);
+  }
+  else
+  {
+    u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+    // drawStringLine(SCREEN_WIDTH / 2, 12, ret, CENTER);
+  }
+}
+
+void loopTime()
+{
+  time_t currentTime;
+  time(&currentTime);
+  struct tm *timeinfo = localtime(&currentTime);
+
+  if (timeinfo->tm_min != previousMinute)
+  {
+    previousMinute = timeinfo->tm_min;
+    Serial.println(ctime(&currentTime));
+    printLocalTime(true);
+    display.display(true);
+  }
 }
