@@ -57,6 +57,7 @@ const int ledPin = 2;
 // MQTT
 void initMqtt();
 void onMqttConnect(bool sessionPresent);
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason);
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 void fetchJson(const char *url);
 
@@ -231,14 +232,13 @@ uint8_t startWiFi()
 
 void drawString(int x, int y, String text, alignment align)
 {
-  // u8g2Fonts.setFont(u8g2_font_helvB24_tf);
   char textArray[text.length() + 1];
   text.toCharArray(textArray, text.length() + 1);
   int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
   int16_t textAscent = u8g2Fonts.getFontAscent();
   int16_t textDescent = u8g2Fonts.getFontDescent();
   int16_t boxWidth = textWidth + 2;
-  int16_t boxHeight = textAscent + textDescent + 15; // 10
+  int16_t boxHeight = textAscent + textDescent + 6; // 10
 
   int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
   uint16_t w, h;
@@ -251,7 +251,8 @@ void drawString(int x, int y, String text, alignment align)
     // x = x - w / 2;
     x = x - textWidth / 2;
   }
-  display.fillRect(x, y - h * 2, boxWidth, boxHeight, GxEPD_WHITE);
+  display.fillRect(x - 4, y + h - boxHeight + 4, boxWidth + 8, boxHeight, GxEPD_WHITE);
+  // display.drawRect(x - 4, y + h - boxHeight + 4, boxWidth + 8, boxHeight, GxEPD_BLACK);
   u8g2Fonts.setCursor(x, y + h + 2); // +2
   u8g2Fonts.print(text);
   display.display(true); // partial update
@@ -349,6 +350,7 @@ void displayData()
 void initMqtt()
 {
   mqttClient.onConnect(onMqttConnect);
+  mqttClient.onDisconnect(onMqttDisconnect);
   mqttClient.onMessage(onMqttMessage);
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.connect();
@@ -364,6 +366,20 @@ void onMqttConnect(bool sessionPresent)
     Serial.print(mqtt_topics[i]);
     Serial.print(", ");
     mqttClient.subscribe(mqtt_topics[i], 2);
+  }
+  Serial.println("");
+}
+
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
+{
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  drawString(SCREEN_WIDTH, 0, "----", RIGHT);
+  Serial.print("Disconnected to MQTT: ");
+  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  {
+    Serial.print(mqtt_topics[i]);
+    Serial.print(", ");
+    // mqttClient.subscribe(mqtt_topics[i], 2);
   }
   Serial.println("");
 }
@@ -470,6 +486,7 @@ void fetchJson(const char *url)
   if (!ret.isEmpty())
   {
     Serial.println(ret);
+    printLocalTime();
     blinkLED();
   }
 
@@ -505,7 +522,6 @@ void printLocalTime(boolean updateTime)
   {
     u8g2Fonts.setFont(u8g2_font_helvB08_tf);
     drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    // drawStringLine(SCREEN_WIDTH / 2, 12, ret, CENTER);
   }
 }
 
