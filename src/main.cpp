@@ -254,7 +254,7 @@ void drawString(int x, int y, String text, alignment align)
   display.fillRect(x, y - h * 2, boxWidth, boxHeight, GxEPD_WHITE);
   u8g2Fonts.setCursor(x, y + h + 2); // +2
   u8g2Fonts.print(text);
-  display.display(true);
+  display.display(true); // partial update
 }
 
 void drawStringLine(int x, int y, String text, alignment align)
@@ -295,7 +295,7 @@ void drawStringLine(int x, int y, String text, alignment align)
 #endif
   u8g2Fonts.setCursor(x, y + h + 2); // +2
   u8g2Fonts.print(text);
-  display.display(true);
+  display.display(true); // partial update
 }
 
 void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align)
