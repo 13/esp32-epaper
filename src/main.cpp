@@ -15,8 +15,6 @@
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 
-/* TODO: add time */
-
 // #define DEBUG
 
 #define SCREEN_WIDTH 300.0 // Set for landscape mode, don't remove the decimal place!
@@ -254,10 +252,9 @@ void drawString(int x, int y, String text, alignment align)
     x = x - textWidth / 2;
   }
   display.fillRect(x, y - h * 2, boxWidth, boxHeight, GxEPD_WHITE);
-  display.display(true);
   u8g2Fonts.setCursor(x, y + h + 2); // +2
-
   u8g2Fonts.print(text);
+  display.display(true);
 }
 
 void drawStringLine(int x, int y, String text, alignment align)
@@ -296,10 +293,9 @@ void drawStringLine(int x, int y, String text, alignment align)
   display.drawLine(0, y + h - boxHeight + 8, SCREEN_WIDTH, y + h - boxHeight + 8, GxEPD_BLACK);
   // display.fillRect(0, y - h * 2, SCREEN_WIDTH, boxHeight, GxEPD_WHITE);
 #endif
-  display.display(true);
   u8g2Fonts.setCursor(x, y + h + 2); // +2
-
   u8g2Fonts.print(text);
+  display.display(true);
 }
 
 void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align)
@@ -346,8 +342,7 @@ void initDisplay()
 
 void displayData()
 {
-  drawSections();        // Top line of the display
-  display.display(true); // Full screen update mode
+  drawSections(); // Top line of the display
 }
 
 // MQTT
@@ -363,7 +358,6 @@ void onMqttConnect(bool sessionPresent)
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
-  display.display(true);
   Serial.print("Connected to MQTT: ");
   for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
   {
@@ -402,7 +396,10 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
         ret += String(h1, 1);
         ret += "%";
       }
-      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
+      if (!ret.isEmpty())
+      {
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
+      }
     }
     if (doc["N"] == "3f")
     {
@@ -419,7 +416,10 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
         ret += String(h1, 1);
         ret += "%";
       }
-      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
+      if (!ret.isEmpty())
+      {
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
+      }
     }
   }
 
@@ -428,16 +428,17 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
     bool output = doc["output"];
     ret += "HZG: ";
     ret += output ? "Ein" : "Aus";
-    // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-    // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    u8g2Fonts.setFont(SFProTextBold32);
-    drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+    if (!ret.isEmpty())
+    {
+      u8g2Fonts.setFont(SFProTextBold32);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+    }
   }
+
   if (!ret.isEmpty())
   {
     Serial.println(ret);
     printLocalTime();
-    display.display(true);
     blinkLED();
   }
 }
@@ -460,15 +461,15 @@ void fetchJson(const char *url)
     bool output = doc["switch:0"]["output"];
     ret = "HZG: ";
     ret += output ? "Ein" : "Aus";
-    // drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-    // u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
-    u8g2Fonts.setFont(SFProTextBold32);
-    drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+    if (!ret.isEmpty())
+    {
+      u8g2Fonts.setFont(SFProTextBold32);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+    }
   }
   if (!ret.isEmpty())
   {
     Serial.println(ret);
-    display.display(true);
     blinkLED();
   }
 
@@ -495,7 +496,6 @@ void printLocalTime(boolean updateTime)
   strftime(timeBuff, sizeof(timeBuff), "%H:%M", &timeinfo);
   String ret = timeBuff;
 
-  // u8g2Fonts.setFont(u8g2_font_logisoso42_tf);
   if (updateTime)
   {
     u8g2Fonts.setFont(SFProTextBold55);
@@ -520,6 +520,5 @@ void loopTime()
     previousMinute = timeinfo->tm_min;
     Serial.println(ctime(&currentTime));
     printLocalTime(true);
-    display.display(true);
   }
 }
