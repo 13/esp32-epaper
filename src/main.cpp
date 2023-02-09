@@ -1,190 +1,391 @@
-// #include "my_credentials.h"
 #include <Arduino.h>
-#include <WiFi.h>              // Built-in
-#include "time.h"              // Built-in
-#include <SPI.h>               // Built-in
-#define ENABLE_GxEPD2_GFX 0
+
+#include "credentials.h" // Wifi SSID and PASSWORD
+#include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
+#include <WiFi.h>        // Built-in
+#include "time.h"        // Built-in
+#include <SPI.h>         // Built-in
+#define ENABLE_GxEPD2_display 0
 #include <GxEPD2_BW.h>
 #include <U8g2_for_Adafruit_GFX.h>
+#include "SFProTextBold32.h"
+#include "SFProTextBold55.h"
+
 #include <AsyncMqttClient.h>
 #include <HTTPClient.h>
-#include <ArduinoJson.h>
+#include <ArduinoOTA.h>
+#include <ESPmDNS.h>
 
-// WiFi credentials
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
+// #define DEBUG
 
-// MQTT server credentials
-#define MQTT_HOST IPAddress(192, 168, 22, 5)
-#define MQTT_PORT 1883
-#define MQTT_TOPIC "shellies/HZ_DG/status/switch:0"
+#define SCREEN_WIDTH 300.0 // Set for landscape mode, don't remove the decimal place!
+#define SCREEN_HEIGHT 400.0
 
-// URL
-#define URL "http://192.168.22.70/rpc/Shelly.GetStatus"
-
-#define SCREEN_WIDTH  400.0    // Set for landscape mode, don't remove the decimal place!
-#define SCREEN_HEIGHT 300.0
-
-enum alignment {LEFT, RIGHT, CENTER};
-
-U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
+enum alignment
+{
+  LEFT,
+  RIGHT,
+  CENTER
+};
 
 // Connections for e.g. LOLIN D32
 static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
-static const uint8_t EPD_CS   = 5;  // to EPD CS
-static const uint8_t EPD_RST  = 16; // to EPD RST
-static const uint8_t EPD_DC   = 17; // to EPD DC
-static const uint8_t EPD_SCK  = 18; // to EPD CLK
+static const uint8_t EPD_CS = 5;    // to EPD CS
+static const uint8_t EPD_RST = 16;  // to EPD RST
+static const uint8_t EPD_DC = 17;   // to EPD DC
+static const uint8_t EPD_SCK = 18;  // to EPD CLK
 static const uint8_t EPD_MISO = 19; // Master-In Slave-Out not used, as no data from display
 static const uint8_t EPD_MOSI = 23; // to EPD DIN
 
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 
+U8G2_FOR_ADAFRUIT_GFX u8g2Fonts; // Select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+
+int wifi_signal;
+long StartTime = 0;
+unsigned long previousMinute = 0;
+
+// MQTT
 AsyncMqttClient mqttClient;
+
 // HTTPClient
 WiFiClient client; // or WiFiClientSecure for HTTPS
 HTTPClient http;
 
-void InitialiseDisplay();
-void displayFull(String text);
-void displayPartial(String text);
+// Led Pin
+const int ledPin = 2;
+
+// MQTT
+void initMqtt();
 void onMqttConnect(bool sessionPresent);
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason);
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 void fetchJson(const char *url);
-void DrawHeadingSection();
+
+void initDisplay();
+void drawSections();
 void drawString(int x, int y, String text, alignment align);
-void DisplayData();
+void drawStringLine(int x, int y, String text, alignment align);
+void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
+void displayData();
+uint8_t startWiFi();
+void blinkLED();
+void printLocalTime();
+void printLocalTime(boolean updateTime);
+void loopTime();
 
 void setup()
 {
+  StartTime = millis();
   Serial.begin(115200);
   delay(10);
-  delay(4000);
-  // boot
-  Serial.printf("\n\nBooting... Compiled: %s\n", __TIMESTAMP__);
-  String bootText = "Booting...\nCompiled: ";
-  bootText += __TIMESTAMP__;
+#ifdef VERBOSE
+  delay(20);
+#endif
+  // Start Boot
+  Serial.println(F("> "));
+  Serial.println(F("> "));
+  Serial.print(F("> Booting... Compiled: "));
+  Serial.println(F(__TIMESTAMP__));
 
-  // display.init(115200, true, 2, false); // USE THIS for Waveshare boards with "clever" reset circuit, 2ms reset pulse
-  /*displayFull(bootText);
-  delay(1000);
-  display.powerOff();*/
-  InitialiseDisplay();
+  pinMode(ledPin, OUTPUT);
+  blinkLED();
 
+  display.display(false); // reset screen
 
-  // Connect to WiFi
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED)
+  if (startWiFi() == WL_CONNECTED)
   {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
+    if (MDNS.begin(hostname))
+    {
+      Serial.println("[MDNS]: Responder started");
+    }
+    initDisplay(); // Give screen time to initialise by getting weather data!
+    // WiFiClient client; // wifi client object
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+    drawString(4, 0, "WiFi", LEFT);
+
+    // Time
+    // configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
+    configTzTime(time_zone, ntpServers[0], ntpServers[1]);
+    printLocalTime(true);
+
+    // FetchJson
+    for (int i = 0; i < sizeof(http_urls) / sizeof(http_urls[0]); i++)
+    {
+      Serial.print("[FETCH]: Fetching ");
+      Serial.print(http_urls[i]);
+      Serial.println(" ...");
+      fetchJson(http_urls[i]);
+    }
+
+    // Initialize the MQTT client
+    initMqtt();
+
+    // ArduinoOTA
+    // Port defaults to 3232
+    // ArduinoOTA.setPort(3232);
+
+    // Hostname defaults to esp3232-[MAC]
+    ArduinoOTA.setHostname(hostname);
+
+    // No authentication by default
+    // ArduinoOTA.setPassword("admin");
+
+    // Password can be set with it's md5 value as well
+    // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+    // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+    ArduinoOTA
+        .onStart([]()
+                 {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("[OTA]: Start updating " + type); })
+        .onEnd([]()
+               { Serial.println("\n[OTA]: End"); })
+        .onProgress([](unsigned int progress, unsigned int total)
+                    { Serial.printf("[OTA]: Progress: %u%%\r", (progress / (total / 100))); })
+        .onError([](ota_error_t error)
+                 {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("[OTA]: Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("[OTA]: Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("[OTA]: Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("[OTA]: Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("[OTA]: End Failed"); });
+
+    ArduinoOTA.begin();
+
+    displayData();
   }
-  Serial.println("Connected to WiFi");
-  // displayPartial("WIFI");
-  DisplayData();
-  drawString(4, 0, "WIFI", LEFT);
-
-  // FetchJson
-  fetchJson(URL);
-
-  // Initialize the MQTT client
-  mqttClient.onConnect(onMqttConnect);
-  mqttClient.onMessage(onMqttMessage);
-  mqttClient.setServer(MQTT_HOST, MQTT_PORT);
-  mqttClient.connect();
 }
+
 
 void loop()
 {
-  // nothing to do here
+  // this will never run!
+  loopTime();
+  ArduinoOTA.handle();
 }
 
-void displayFull(String text)
+void blinkLED()
 {
-  display.setRotation(1);
-  // display.setFont(&FreeMonoBold9pt7b);
-  if (display.epd2.WIDTH < 104)
-    display.setFont(0);
-  display.setTextColor(GxEPD_BLACK);
-  int16_t tbx, tby;
-  uint16_t tbw, tbh;
-  display.getTextBounds(text, 0, 0, &tbx, &tby, &tbw, &tbh);
-  Serial.printf("\nwidth: %d height: %d\n", display.width(), display.height());
-  Serial.printf("\ntbx: %d tby: %d tbw: %d tbh: %d\n", tbx, tby, tbw, tbh);
-  // center bounding box by transposition of origin:
-  // uint16_t x = ((display.width() - tbw) / 2) - tbx;
-  // uint16_t y = ((display.height() - tbh) / 2) - tby;
-  // bottom
-  // uint16_t x = ((display.width() - tbw)) - tbx;
-  // uint16_t y = ((display.height() - tbh)) - tby;
-  // top left
-  // uint16_t x = display.width();
-  // uint16_t y = 0;
-  // top right
-  // uint16_t x = (display.width() - tbw) -tbx;
-  // uint16_t y = 0 + tbh;
-  // bottom left
-  uint16_t x = 0;
-  uint16_t y = display.height();
-  // bottom right
-  // uint16_t x = (display.width() - tbw) -tbx;
-  // uint16_t y = (display.height() - tbh) - tby;
+  for (int i = 0; i < 3; i++)
+  {
+    digitalWrite(ledPin, HIGH);
+    delay(50);
+    digitalWrite(ledPin, LOW);
+    delay(50);
+  }
+}
+
+void drawSections()
+{
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  drawStringLine(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 2.0) + 40, "OUTSIDE", CENTER);
+  drawStringLine(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 1.31) + 40, "INSIDE", CENTER);
+}
+
+uint8_t startWiFi()
+{
+  Serial.print("\r\nConnecting to: ");
+  Serial.println(String(wifi_ssid));
+  WiFi.disconnect();
+  WiFi.mode(WIFI_STA); // switch off AP
+  WiFi.setAutoConnect(true);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(wifi_ssid, wifi_pass);
+  WiFi.config(ip, gw, sn, dns1);
+  unsigned long start = millis();
+  uint8_t connectionStatus;
+  bool AttemptConnection = true;
+  while (AttemptConnection)
+  {
+    connectionStatus = WiFi.status();
+    if (millis() > start + 15000)
+    { // Wait 15-secs maximum
+      AttemptConnection = false;
+    }
+    if (connectionStatus == WL_CONNECTED || connectionStatus == WL_CONNECT_FAILED)
+    {
+      AttemptConnection = false;
+    }
+    delay(50);
+  }
+  if (connectionStatus == WL_CONNECTED)
+  {
+    wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
+    Serial.println("[WiFi]: Connected at: " + WiFi.localIP().toString());
+  }
+  else
+  {
+    Serial.println("[WiFi]: Connection *** FAILED ***");
+  }
+  return connectionStatus;
+}
+
+void drawString(int x, int y, String text, alignment align)
+{
+  char textArray[text.length() + 1];
+  text.toCharArray(textArray, text.length() + 1);
+  int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
+  int16_t textAscent = u8g2Fonts.getFontAscent();
+  int16_t textDescent = u8g2Fonts.getFontDescent();
+  int16_t boxWidth = textWidth + 2;
+  int16_t boxHeight = textAscent + textDescent + 6; // 10
+
+  int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
+  uint16_t w, h;
+  display.setTextWrap(false);
+  display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
+  if (align == RIGHT)
+    x = x - w - 10;
+  if (align == CENTER)
+  {
+    // x = x - w / 2;
+    x = x - textWidth / 2;
+  }
+  display.fillRect(x - 4, y + h - boxHeight + 4, boxWidth + 8, boxHeight, GxEPD_WHITE);
+  // display.drawRect(x - 4, y + h - boxHeight + 4, boxWidth + 8, boxHeight, GxEPD_BLACK);
+  u8g2Fonts.setCursor(x, y + h + 2); // +2
+  u8g2Fonts.print(text);
+  display.display(true); // partial update
+}
+
+void drawStringLine(int x, int y, String text, alignment align)
+{
+  // u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+  char textArray[text.length() + 1];
+  text.toCharArray(textArray, text.length() + 1);
+  int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
+  int16_t textAscent = u8g2Fonts.getFontAscent();
+  int16_t textDescent = u8g2Fonts.getFontDescent();
+  int16_t boxWidth = textWidth + 2;
+  int16_t boxHeight = textAscent - textDescent + 4; // + textDescent + 15; // 10
+#ifdef DEBUG
+  Serial.printf("[DEBUG]: drawStringLine box:\ntxtW: %d, txtAsc: %d, txtDesc: %d, boxW: %d, boxH: %d\n", textWidth, textAscent, textDescent, boxWidth, boxHeight);
+#endif
+  int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
+  uint16_t w, h;
+  display.setTextWrap(false);
+  display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
+#ifdef DEBUG
+  Serial.printf("[DEBUG]: drawStringLine text:\nx: %d, y: %d, x1: %d, y1: %d, w: %d, h: %d\n", x, y, &x1, &y1, &w, &h);
+#endif
+  if (align == RIGHT)
+    x = x - w - 10;
+  if (align == CENTER)
+  {
+    // x = x - w / 2;
+    x = x - textWidth / 2;
+  }
+
+#ifdef DEBUG
+  display.drawRect(0, y + h - boxHeight + 8, SCREEN_WIDTH, boxHeight, GxEPD_BLACK);
+  // display.drawRect(0, y, SCREEN_WIDTH, boxHeight, GxEPD_BLACK); // y - h * 4
+#else
+  display.fillRect(0, y + h - boxHeight + 8, SCREEN_WIDTH, boxHeight, GxEPD_WHITE);
+  display.drawLine(0, y + h - boxHeight + 8, SCREEN_WIDTH, y + h - boxHeight + 8, GxEPD_BLACK);
+  // display.fillRect(0, y - h * 2, SCREEN_WIDTH, boxHeight, GxEPD_WHITE);
+#endif
+  u8g2Fonts.setCursor(x, y + h + 2); // +2
+  u8g2Fonts.print(text);
+  display.display(true); // partial update
+}
+
+void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align)
+{
+  int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
+  uint16_t w, h;
+  display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
+  if (align == RIGHT)
+    x = x - w;
+  if (align == CENTER)
+    x = x - w / 2;
+  u8g2Fonts.setCursor(x, y);
+  if (text.length() > text_width * 2)
+  {
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+    text_width = 42;
+    y = y - 3;
+  }
+  u8g2Fonts.println(text.substring(0, text_width));
+  if (text.length() > text_width)
+  {
+    u8g2Fonts.setCursor(x, y + h + 15);
+    String secondLine = text.substring(text_width);
+    secondLine.trim(); // Remove any leading spaces
+    u8g2Fonts.println(secondLine);
+  }
+}
+
+void initDisplay()
+{
+  display.init(115200, true, 2, false);
+  display.setRotation(3);
+  SPI.end();
+  SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
+  u8g2Fonts.begin(display);                  // connect u8g2 procedures to Adafruit GFX
+  u8g2Fonts.setFontMode(1);                  // use u8g2 transparent mode (this is default)
+  u8g2Fonts.setFontDirection(0);             // left to right (this is default)
+  u8g2Fonts.setForegroundColor(GxEPD_BLACK); // apply Adafruit GFX color
+  u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // apply Adafruit GFX color
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);   // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+  display.fillScreen(GxEPD_WHITE);
   display.setFullWindow();
-  display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(x, y);
-    display.print(text);
-  } while (display.nextPage());
-  Serial.println(text);
 }
 
-void displayPartial(String text)
+void displayData()
 {
-  Serial.println(text);
-  display.setPartialWindow(0, 0, display.width(), display.height());
-  display.setRotation(1);
-  // display.setFont(&FreeMonoBold9pt7b);
-  display.setTextColor(GxEPD_BLACK);
-
-  // do this outside of the loop
-  int16_t tbx, tby;
-  uint16_t tbw, tbh;
-  // center update text
-  display.getTextBounds(text, 0, 0, &tbx, &tby, &tbw, &tbh);
-  uint16_t utx = ((display.width() - tbw) / 2) - tbx;
-  uint16_t uty = ((display.height() / 4) - tbh / 2) - tby;
-  // center update mode
-  display.getTextBounds(text, 0, 0, &tbx, &tby, &tbw, &tbh);
-  uint16_t umx = ((display.width() - tbw) / 2) - tbx;
-  uint16_t umy = ((display.height() * 3 / 4) - tbh / 2) - tby;
-  // center HelloWorld
-  // display.getTextBounds(HelloWorld, 0, 0, &tbx, &tby, &tbw, &tbh);
-  uint16_t hwx = ((display.width() - tbw) / 2) - tbx;
-  uint16_t hwy = ((display.height() - tbh) / 2) - tby;
-  display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-    // display.setCursor(hwx, hwy);
-    // display.print(HelloWorld);
-    display.drawFastHLine(0,16,128,GxEPD_BLACK);
-    display.setCursor(utx, uty);
-    display.print(text);
-    display.setCursor(umx, umy);
-    display.print(text);
-  } while (display.nextPage());
+  drawSections(); // Top line of the display
 }
 
 // MQTT
+void initMqtt()
+{
+  mqttClient.onConnect(onMqttConnect);
+  mqttClient.onDisconnect(onMqttDisconnect);
+  mqttClient.onMessage(onMqttMessage);
+  mqttClient.setServer(mqtt_server, mqtt_port);
+  mqttClient.connect();
+}
 
 void onMqttConnect(bool sessionPresent)
 {
-  Serial.println("Connected to MQTT.");
-  // displayPartial("MQTT");
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
-  mqttClient.subscribe(MQTT_TOPIC, 2);
+  Serial.print("[MQTT]: Connecting... ");
+  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  {
+    Serial.print(mqtt_topics[i]);
+    Serial.print(", ");
+    mqttClient.subscribe(mqtt_topics[i], 2);
+  }
+  Serial.println("");
+}
+
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
+{
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  drawString(SCREEN_WIDTH, 0, "XXXX", RIGHT);
+  Serial.print("[MQTT]: Disconnected... ");
+  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  {
+    Serial.print(mqtt_topics[i]);
+    Serial.print(", ");
+    // mqttClient.subscribe(mqtt_topics[i], 2);
+  }
+  Serial.println("");
+  if (WiFi.isConnected())
+  {
+    Serial.println("[MQTT]: Reconnecting...");
+    mqttClient.connect();
+  }
 }
 
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
@@ -195,22 +396,72 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   serializeJsonPretty(doc, Serial);
   Serial.println();
 
-  /*float t1 = doc["T1"];
-  float t2 = doc["T2"];
-  float t3 = doc["T3"];
+  String ret;
 
-  String output = "T1: ";
-  output += t1;
-  output += " T2: ";
-  output += t2;
-  output += " T3: ";
-  output += t3;*/
+  if (doc.containsKey("N"))
+  {
+    u8g2Fonts.setFont(SFProTextBold32);
+    if (doc["N"] == "22")
+    {
+      if (doc.containsKey("T2") && doc.containsKey("T4"))
+      {
+        float t2 = doc["T2"];
+        float t4 = doc["T4"];
+        ret += String((t2 + t4) / 2, 1);
+        ret += "° ";
+      }
+      if (doc.containsKey("H4"))
+      {
+        float h1 = doc["H4"];
+        ret += String(h1, 1);
+        ret += "%";
+      }
+      if (!ret.isEmpty())
+      {
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
+      }
+    }
+    if (doc["N"] == "3f")
+    {
+      if (doc.containsKey("T1") && doc.containsKey("T2"))
+      {
+        float t1 = doc["T1"];
+        float t2 = doc["T2"];
+        ret += String((t1 + t2) / 2, 1);
+        ret += "° ";
+      }
+      if (doc.containsKey("H1"))
+      {
+        float h1 = doc["H1"];
+        ret += String(h1, 1);
+        ret += "%";
+      }
+      if (!ret.isEmpty())
+      {
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
+      }
+    }
+  }
 
-  bool output = doc["output"];
-  String ret = "HEIZUNG: ";
-  ret += output;
-  drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
-  //displayPartial(ret);
+  if (doc.containsKey("output"))
+  {
+    bool output = doc["output"];
+    ret += "HZG: ";
+    ret += output ? "Ein" : "Aus";
+    if (!ret.isEmpty())
+    {
+      u8g2Fonts.setFont(SFProTextBold32);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+    }
+  }
+
+  if (!ret.isEmpty())
+  {
+    Serial.print("[MQTT]: ");
+    Serial.println(ret);
+    printLocalTime();
+    blinkLED();
+  }
 }
 
 // Fetch
@@ -224,66 +475,74 @@ void fetchJson(const char *url)
   DynamicJsonDocument doc(2048);
   deserializeJson(doc, http.getStream());
 
-  // Read values
-  /*Serial.println(F("Response:"));
-  Serial.println(doc["sensor"].as<const char *>());
-  Serial.println(doc["time"].as<long>());
-  Serial.println(doc["data"][0].as<float>(), 6);
-  Serial.println(doc["data"][1].as<float>(), 6);*/
+  String ret;
 
-  bool output = doc["switch:0"]["output"];
-  String ret = "HZ: ";
-  ret += output;
+  if (doc.containsKey("switch:0"))
+  {
+    bool output = doc["switch:0"]["output"];
+    ret = "HZG: ";
+    ret += output ? "Ein" : "Aus";
+    if (!ret.isEmpty())
+    {
+      u8g2Fonts.setFont(SFProTextBold32);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+    }
+  }
+  if (!ret.isEmpty())
+  {
+    Serial.print("[FETCH]: Fetching... ");
+    Serial.println(ret);
+    printLocalTime();
+    blinkLED();
+  }
 
-  Serial.println(ret);
-
-  // displayPartial(ret);
-  drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
   // Disconnect
   http.end();
 }
 
-void DisplayData() {                 // 4.2" e-paper display is 400x300 resolution
-  DrawHeadingSection();                 // Top line of the display
+void printLocalTime()
+{
+  printLocalTime(false);
 }
 
-void DrawHeadingSection() {
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  // drawString(SCREEN_WIDTH / 2, 0, "City", CENTER);
-  // drawString(SCREEN_WIDTH, 0, "date_str", RIGHT);
-  // drawString(4, 0, "time_str", LEFT);
-  // DrawBattery(65, 12);
-  display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  Serial.println("Line OK");  
+void printLocalTime(boolean updateTime)
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("[TIME]: Failed to obtain time");
+    return;
+  }
+  Serial.print("[TIME]: ");
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+
+  char timeBuff[6];
+  strftime(timeBuff, sizeof(timeBuff), "%H:%M", &timeinfo);
+  String ret = timeBuff;
+
+  if (updateTime)
+  {
+    u8g2Fonts.setFont(SFProTextBold55);
+    drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 5.0, ret, CENTER);
+  }
+  else
+  {
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+  }
 }
 
-void drawString(int x, int y, String text, alignment align) {
-  int16_t  x1, y1; //the bounds of x,y and w and h of the variable 'text' in pixels.
-  uint16_t w, h;
-  display.setTextWrap(false);
-  display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
-  if (align == RIGHT)  x = x - w;
-  if (align == CENTER) x = x - w / 2;
-  u8g2Fonts.setCursor(x, y + h);
-  u8g2Fonts.print(text);
-  display.setCursor(x, y + h);
-  display.print(text);
-  Serial.print(text);
-  Serial.println(" OK");
-}
+void loopTime()
+{
+  time_t currentTime;
+  time(&currentTime);
+  struct tm *timeinfo = localtime(&currentTime);
 
-void InitialiseDisplay() {
-  display.init(115200, true, 2, false);
-  display.setRotation(1);
-  SPI.end();
-  SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);  
-  u8g2Fonts.begin(display); // connect u8g2 procedures to Adafruit GFX
-  u8g2Fonts.setFontMode(1);                  // use u8g2 transparent mode (this is default)
-  u8g2Fonts.setFontDirection(0);             // left to right (this is default)
-  u8g2Fonts.setForegroundColor(GxEPD_BLACK); // apply Adafruit GFX color
-  u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // apply Adafruit GFX color
-  u8g2Fonts.setFont(u8g2_font_helvB10_tf);   // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
-  display.fillScreen(GxEPD_WHITE);
-  display.setFullWindow();
-  Serial.println("InitialiseDisplay OK");
+  if (timeinfo->tm_min != previousMinute)
+  {
+    previousMinute = timeinfo->tm_min;
+    erial.print("[TIME]: ");
+    Serial.println(ctime(&currentTime));
+    printLocalTime(true);
+  }
 }
