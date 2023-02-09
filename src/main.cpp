@@ -96,7 +96,7 @@ void setup()
   {
     if (MDNS.begin(hostname))
     {
-      Serial.println("MDNS responder started");
+      Serial.println("[MDNS]: Responder started");
     }
     initDisplay(); // Give screen time to initialise by getting weather data!
     // WiFiClient client; // wifi client object
@@ -111,7 +111,7 @@ void setup()
     // FetchJson
     for (int i = 0; i < sizeof(http_urls) / sizeof(http_urls[0]); i++)
     {
-      Serial.print("Fetching ");
+      Serial.print("[FETCH]: Fetching ");
       Serial.print(http_urls[i]);
       Serial.println(" ...");
       fetchJson(http_urls[i]);
@@ -143,19 +143,19 @@ void setup()
         type = "filesystem";
 
       // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-      Serial.println("Start updating " + type); })
+      Serial.println("[OTA]: Start updating " + type); })
         .onEnd([]()
-               { Serial.println("\nEnd"); })
+               { Serial.println("\n[OTA]: End"); })
         .onProgress([](unsigned int progress, unsigned int total)
-                    { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
+                    { Serial.printf("[OTA]: Progress: %u%%\r", (progress / (total / 100))); })
         .onError([](ota_error_t error)
                  {
       Serial.printf("Error[%u]: ", error);
-      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-      else if (error == OTA_END_ERROR) Serial.println("End Failed"); });
+      if (error == OTA_AUTH_ERROR) Serial.println("[OTA]: Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("[OTA]: Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("[OTA]: Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("[OTA]: Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("[OTA]: End Failed"); });
 
     ArduinoOTA.begin();
 
@@ -221,11 +221,11 @@ uint8_t startWiFi()
   if (connectionStatus == WL_CONNECTED)
   {
     wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
-    Serial.println("WiFi connected at: " + WiFi.localIP().toString());
+    Serial.println("[WiFi]: Connected at: " + WiFi.localIP().toString());
   }
   else
   {
-    Serial.println("WiFi connection *** FAILED ***");
+    Serial.println("[WiFi]: Connection *** FAILED ***");
   }
   return connectionStatus;
 }
@@ -269,14 +269,14 @@ void drawStringLine(int x, int y, String text, alignment align)
   int16_t boxWidth = textWidth + 2;
   int16_t boxHeight = textAscent - textDescent + 4; // + textDescent + 15; // 10
 #ifdef DEBUG
-  Serial.printf("drawStringLine box:\ntxtW: %d, txtAsc: %d, txtDesc: %d, boxW: %d, boxH: %d\n", textWidth, textAscent, textDescent, boxWidth, boxHeight);
+  Serial.printf("[DEBUG]: drawStringLine box:\ntxtW: %d, txtAsc: %d, txtDesc: %d, boxW: %d, boxH: %d\n", textWidth, textAscent, textDescent, boxWidth, boxHeight);
 #endif
   int16_t x1, y1; // the bounds of x,y and w and h of the variable 'text' in pixels.
   uint16_t w, h;
   display.setTextWrap(false);
   display.getTextBounds(text, x, y, &x1, &y1, &w, &h);
 #ifdef DEBUG
-  Serial.printf("drawStringLine text:\nx: %d, y: %d, x1: %d, y1: %d, w: %d, h: %d\n", x, y, &x1, &y1, &w, &h);
+  Serial.printf("[DEBUG]: drawStringLine text:\nx: %d, y: %d, x1: %d, y1: %d, w: %d, h: %d\n", x, y, &x1, &y1, &w, &h);
 #endif
   if (align == RIGHT)
     x = x - w - 10;
@@ -360,7 +360,7 @@ void onMqttConnect(bool sessionPresent)
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
-  Serial.print("Connected to MQTT: ");
+  Serial.print("[MQTT]: Connecting... ");
   for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
   {
     Serial.print(mqtt_topics[i]);
@@ -373,8 +373,8 @@ void onMqttConnect(bool sessionPresent)
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(SCREEN_WIDTH, 0, "----", RIGHT);
-  Serial.print("Disconnected to MQTT: ");
+  drawString(SCREEN_WIDTH, 0, "XXXX", RIGHT);
+  Serial.print("[MQTT]: Disconnected... ");
   for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
   {
     Serial.print(mqtt_topics[i]);
@@ -382,6 +382,11 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
     // mqttClient.subscribe(mqtt_topics[i], 2);
   }
   Serial.println("");
+  if (WiFi.isConnected())
+  {
+    Serial.println("[MQTT]: Reconnecting...");
+    mqttClient.connect();
+  }
 }
 
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
@@ -453,6 +458,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 
   if (!ret.isEmpty())
   {
+    Serial.print("[MQTT]: ");
     Serial.println(ret);
     printLocalTime();
     blinkLED();
@@ -485,6 +491,7 @@ void fetchJson(const char *url)
   }
   if (!ret.isEmpty())
   {
+    Serial.print("[FETCH]: Fetching... ");
     Serial.println(ret);
     printLocalTime();
     blinkLED();
@@ -504,9 +511,10 @@ void printLocalTime(boolean updateTime)
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo))
   {
-    Serial.println("Failed to obtain time");
+    Serial.println("[TIME]: Failed to obtain time");
     return;
   }
+  Serial.print("[TIME]: ");
   Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
 
   char timeBuff[6];
@@ -534,6 +542,7 @@ void loopTime()
   if (timeinfo->tm_min != previousMinute)
   {
     previousMinute = timeinfo->tm_min;
+    erial.print("[TIME]: ");
     Serial.println(ctime(&currentTime));
     printLocalTime(true);
   }
