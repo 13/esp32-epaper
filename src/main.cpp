@@ -183,13 +183,10 @@ void blinkLED()
 
 void drawSections()
 {
-  // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  /*display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-   display.drawLine(0, (SCREEN_HEIGHT / 2.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.0) + 10, GxEPD_BLACK);
-   display.drawLine(0, (SCREEN_HEIGHT / 4.0) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 4.0) + 10, GxEPD_BLACK);
-   display.drawLine(0, (SCREEN_HEIGHT / 1.31) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.31) + 10, GxEPD_BLACK);
-   */
-  // display.drawLine(0, (SCREEN_HEIGHT / 1.03) + 10, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.03) + 10, GxEPD_BLACK);
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  drawStringLine(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 2.0) + 40, "OUTSIDE", CENTER);
+  drawStringLine(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 1.31) + 40, "INSIDE", CENTER);
 }
 
 uint8_t startWiFi()
