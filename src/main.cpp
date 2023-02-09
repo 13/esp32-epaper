@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #include "credentials.h" // Wifi SSID and PASSWORD
 #include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
 #include <WiFi.h>        // Built-in
@@ -162,6 +163,7 @@ void setup()
     displayData();
   }
 }
+
 
 void loop()
 {
