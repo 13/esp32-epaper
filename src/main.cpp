@@ -164,7 +164,6 @@ void setup()
   }
 }
 
-
 void loop()
 {
   // this will never run!
@@ -174,12 +173,15 @@ void loop()
 
 void blinkLED()
 {
-  for (int i = 0; i < 3; i++)
+  if (enableLED)
   {
-    digitalWrite(ledPin, HIGH);
-    delay(50);
-    digitalWrite(ledPin, LOW);
-    delay(50);
+    for (int i = 0; i < 3; i++)
+    {
+      digitalWrite(ledPin, HIGH);
+      delay(50);
+      digitalWrite(ledPin, LOW);
+      delay(50);
+    }
   }
 }
 
@@ -187,13 +189,17 @@ void drawSections()
 {
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
   display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  drawStringLine(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 2.0) + 40, "OUTSIDE", CENTER);
-  drawStringLine(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 1.31) + 40, "INSIDE", CENTER);
+  
+  // display.drawLine(0, (SCREEN_HEIGHT / 1.8) + 35, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.8) + 35, GxEPD_BLACK);
+  // drawString(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 1.8) + 55, "INSIDE", CENTER);
+
+  // display.drawLine(0, (SCREEN_HEIGHT / 2.8) + 50, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.8) + 50, GxEPD_BLACK);
+  // drawStringLine(SCREEN_WIDTH / 2.8, (SCREEN_HEIGHT / 2.8) + 40, "OUTSIDE", CENTER);
 }
 
 uint8_t startWiFi()
 {
-  Serial.print("\r\nConnecting to: ");
+  Serial.print("\r\n[WiFi] Connecting to: ");
   Serial.println(String(wifi_ssid));
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
@@ -541,7 +547,7 @@ void loopTime()
   if (timeinfo->tm_min != previousMinute)
   {
     previousMinute = timeinfo->tm_min;
-    erial.print("[TIME]: ");
+    Serial.print("[TIME]: ");
     Serial.println(ctime(&currentTime));
     printLocalTime(true);
   }
