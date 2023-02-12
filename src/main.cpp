@@ -162,6 +162,11 @@ void setup()
 
     displayData();
   }
+  else
+  {
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+    drawString(4, 0, "XXXX", LEFT);
+  }
 }
 
 void loop()
@@ -187,9 +192,9 @@ void blinkLED()
 
 void drawSections()
 {
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
-  
+  // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  // display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+
   // display.drawLine(0, (SCREEN_HEIGHT / 1.8) + 35, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.8) + 35, GxEPD_BLACK);
   // drawString(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 1.8) + 55, "INSIDE", CENTER);
 
@@ -231,6 +236,8 @@ uint8_t startWiFi()
   else
   {
     Serial.println("[WiFi]: Connection *** FAILED ***");
+    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+    drawString(4, 0, "XXXX", LEFT);
   }
   return connectionStatus;
 }
@@ -372,7 +379,7 @@ void onMqttConnect(bool sessionPresent)
     Serial.print(", ");
     mqttClient.subscribe(mqtt_topics[i], 2);
   }
-  Serial.println("");
+  Serial.println(" OK");
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
