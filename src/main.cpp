@@ -398,6 +398,8 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
   {
     Serial.println("[MQTT]: Reconnecting...");
     mqttClient.connect();
+    // check if disconnected
+    ESP.restart();
   }
 }
 
