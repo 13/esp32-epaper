@@ -11,7 +11,7 @@
 #include "SFProTextBold32.h"
 #include "SFProTextBold55.h"
 
-#include <AsyncMqttClient.h>
+#include <PubSubClient.h>
 #include <HTTPClient.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
@@ -45,11 +45,11 @@ int wifi_signal;
 long StartTime = 0;
 unsigned long previousMinute = 0;
 
-// MQTT
-AsyncMqttClient mqttClient;
-
 // HTTPClient
 WiFiClient client; // or WiFiClientSecure for HTTPS
+// MQTT
+PubSubClient mqttClient(client);
+
 HTTPClient http;
 
 // Led Pin
@@ -57,11 +57,10 @@ const int ledPin = 2;
 
 // MQTT
 void initMqtt();
-void onMqttConnect(bool sessionPresent);
-void onMqttDisconnect(AsyncMqttClientDisconnectReason reason);
-void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
+void onMqttDisconnect();
+void onMqttMessage(char *topic, byte *payload, unsigned int len);
+void reconnectMqtt();
 void fetchJson(const char *url);
-
 void initDisplay();
 void drawSections();
 void drawString(int x, int y, String text, alignment align);
@@ -120,6 +119,7 @@ void setup()
 
     // Initialize the MQTT client
     initMqtt();
+    // mqttClient.setCallback(onMqttMessage);
 
     // ArduinoOTA
     // Port defaults to 3232
@@ -173,6 +173,11 @@ void loop()
 {
   // this will never run!
   loopTime();
+  if (!mqttClient.connected())
+  {
+    reconnectMqtt();
+  }
+  mqttClient.loop();
   ArduinoOTA.handle();
 }
 
@@ -358,127 +363,6 @@ void displayData()
   drawSections(); // Top line of the display
 }
 
-// MQTT
-void initMqtt()
-{
-  mqttClient.onConnect(onMqttConnect);
-  mqttClient.onDisconnect(onMqttDisconnect);
-  mqttClient.onMessage(onMqttMessage);
-  mqttClient.setServer(mqtt_server, mqtt_port);
-  mqttClient.connect();
-}
-
-void onMqttConnect(bool sessionPresent)
-{
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
-  Serial.print("[MQTT]: Connecting... ");
-  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
-  {
-    Serial.print(mqtt_topics[i]);
-    Serial.print(", ");
-    mqttClient.subscribe(mqtt_topics[i], 2);
-  }
-  Serial.println(" OK");
-}
-
-void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
-{
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(SCREEN_WIDTH, 0, "XXXX", RIGHT);
-  Serial.print("[MQTT]: Disconnected... ");
-  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
-  {
-    Serial.print(mqtt_topics[i]);
-    Serial.print(", ");
-    // mqttClient.subscribe(mqtt_topics[i], 2);
-  }
-  Serial.println("");
-  if (WiFi.isConnected())
-  {
-    Serial.println("[MQTT]: Reconnecting...");
-    mqttClient.connect();
-    // check if disconnected
-    ESP.restart();
-  }
-}
-
-void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
-{
-  // Parse the JSON data
-  StaticJsonDocument<200> doc;
-  deserializeJson(doc, payload, len);
-  serializeJsonPretty(doc, Serial);
-  Serial.println();
-
-  String ret;
-
-  if (doc.containsKey("N"))
-  {
-    u8g2Fonts.setFont(SFProTextBold32);
-    if (doc["N"] == "22")
-    {
-      if (doc.containsKey("T2") && doc.containsKey("T4"))
-      {
-        float t2 = doc["T2"];
-        float t4 = doc["T4"];
-        ret += String((t2 + t4) / 2, 1);
-        ret += "° ";
-      }
-      if (doc.containsKey("H4"))
-      {
-        float h1 = doc["H4"];
-        ret += String(h1, 1);
-        ret += "%";
-      }
-      if (!ret.isEmpty())
-      {
-        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
-      }
-    }
-    if (doc["N"] == "3f")
-    {
-      if (doc.containsKey("T1") && doc.containsKey("T2"))
-      {
-        float t1 = doc["T1"];
-        float t2 = doc["T2"];
-        ret += String((t1 + t2) / 2, 1);
-        ret += "° ";
-      }
-      if (doc.containsKey("H1"))
-      {
-        float h1 = doc["H1"];
-        ret += String(h1, 1);
-        ret += "%";
-      }
-      if (!ret.isEmpty())
-      {
-        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
-      }
-    }
-  }
-
-  if (doc.containsKey("output"))
-  {
-    bool output = doc["output"];
-    ret += "HZG: ";
-    ret += output ? "Ein" : "Aus";
-    if (!ret.isEmpty())
-    {
-      u8g2Fonts.setFont(SFProTextBold32);
-      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
-    }
-  }
-
-  if (!ret.isEmpty())
-  {
-    Serial.print("[MQTT]: ");
-    Serial.println(ret);
-    printLocalTime();
-    blinkLED();
-  }
-}
-
 // Fetch
 void fetchJson(const char *url)
 {
@@ -559,5 +443,155 @@ void loopTime()
     Serial.print("[TIME]: ");
     Serial.println(ctime(&currentTime));
     printLocalTime(true);
+  }
+}
+
+// MQTT
+void initMqtt()
+{
+  // Connect to MQTT broker
+  mqttClient.setServer(mqtt_server, mqtt_port);
+  mqttClient.setCallback(onMqttMessage);
+}
+void onMqttConnect(bool sessionPresent)
+{
+  /*Serial.println("Connected to MQTT broker");
+  Serial.print("Session present: ");
+  Serial.println(sessionPresent);
+  mqttClient.subscribe("test/topic");*/
+
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
+  Serial.print("[MQTT]: Connecting... ");
+  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  {
+    Serial.print(mqtt_topics[i]);
+    Serial.print(", ");
+    mqttClient.subscribe(mqtt_topics[i], 2);
+  }
+  Serial.println(" OK");
+}
+
+void onMqttDisconnect()
+{
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  drawString(SCREEN_WIDTH, 0, "XXXX", RIGHT);
+  Serial.print("[MQTT]: Disconnected... ");
+  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  {
+    Serial.print(mqtt_topics[i]);
+    Serial.print(", ");
+    // mqttClient.subscribe(mqtt_topics[i], 2);
+  }
+  Serial.println("");
+  if (WiFi.isConnected())
+  {
+    Serial.println("[MQTT]: Reconnecting...");
+    reconnectMqtt();
+    // check if disconnected
+    // ESP.restart();
+  }
+}
+
+void onMqttMessage(char *topic, byte *payload, unsigned int len)
+{
+  /*Serial.print("Received message on topic: ");
+  Serial.print(topic);
+  Serial.print(", payload: ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();*/
+
+  // Parse the JSON data
+  StaticJsonDocument<200> doc;
+  deserializeJson(doc, payload, len);
+  serializeJsonPretty(doc, Serial);
+  Serial.println();
+
+  String ret;
+
+  if (doc.containsKey("N"))
+  {
+    u8g2Fonts.setFont(SFProTextBold32);
+    if (doc["N"] == "22")
+    {
+      if (doc.containsKey("T2") && doc.containsKey("T4"))
+      {
+        float t2 = doc["T2"];
+        float t4 = doc["T4"];
+        ret += String((t2 + t4) / 2, 1);
+        ret += "° ";
+      }
+      if (doc.containsKey("H4"))
+      {
+        float h1 = doc["H4"];
+        ret += String(h1, 1);
+        ret += "%";
+      }
+      if (!ret.isEmpty())
+      {
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
+      }
+    }
+    if (doc["N"] == "3f")
+    {
+      if (doc.containsKey("T1") && doc.containsKey("T2"))
+      {
+        float t1 = doc["T1"];
+        float t2 = doc["T2"];
+        ret += String((t1 + t2) / 2, 1);
+        ret += "° ";
+      }
+      if (doc.containsKey("H1"))
+      {
+        float h1 = doc["H1"];
+        ret += String(h1, 1);
+        ret += "%";
+      }
+      if (!ret.isEmpty())
+      {
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
+      }
+    }
+  }
+
+  if (doc.containsKey("output"))
+  {
+    bool output = doc["output"];
+    ret += "HZG: ";
+    ret += output ? "Ein" : "Aus";
+    if (!ret.isEmpty())
+    {
+      u8g2Fonts.setFont(SFProTextBold32);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+    }
+  }
+
+  if (!ret.isEmpty())
+  {
+    Serial.print("[MQTT]: ");
+    Serial.println(ret);
+    printLocalTime();
+    blinkLED();
+  }
+}
+
+void reconnectMqtt()
+{
+  // Attempt to reconnect to MQTT broker
+  while (!mqttClient.connected())
+  {
+    Serial.println("Connecting to MQTT broker...");
+    if (mqttClient.connect("esp-epaper", mqtt_user, mqtt_pass))
+    {
+      Serial.println("Connected to MQTT broker");
+      initMqtt();
+    }
+    else
+    {
+      Serial.println("Failed to connect to MQTT broker, retrying in 5 seconds...");
+      delay(5000);
+    }
   }
 }
