@@ -583,15 +583,17 @@ void reconnectMqtt()
   while (!mqttClient.connected())
   {
     Serial.println("Connecting to MQTT broker...");
-    if (mqttClient.connect("esp-epaper", mqtt_user, mqtt_pass))
+    if (mqttClient.connect(hostname, mqtt_user, mqtt_pass))
     {
       Serial.println("Connected to MQTT broker");
       initMqtt();
+      // return true;
     }
     else
     {
       Serial.println("Failed to connect to MQTT broker, retrying in 5 seconds...");
-      delay(5000);
+      // delay(5000);
+      // return false;
     }
   }
 }
