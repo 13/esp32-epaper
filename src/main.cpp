@@ -28,6 +28,7 @@ enum alignment
   CENTER
 };
 
+#if defined (ESP32)
 // Connections for e.g. LOLIN D32
 static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
 static const uint8_t EPD_CS = 5;    // to EPD CS
@@ -36,6 +37,22 @@ static const uint8_t EPD_DC = 17;   // to EPD DC
 static const uint8_t EPD_SCK = 18;  // to EPD CLK
 static const uint8_t EPD_MISO = 19; // Master-In Slave-Out not used, as no data from display
 static const uint8_t EPD_MOSI = 23; // to EPD DIN
+#endif
+
+#if defined (ESP8266) 
+// mapping suggestion from Waveshare SPI e-Paper to Wemos D1 mini
+// BUSY -> D2, RST -> D4, DC -> D3, CS -> D8, CLK -> D5, DIN -> D7, GND -> GND, 3.3V -> 3.3V
+// NOTE: connect 3.3k pull-down from D8 to GND if your board or shield has level converters
+// NOTE for ESP8266: using SS (GPIO15) for CS may cause boot mode problems, use different pin in case, or 4k7 pull-down
+static const uint8_t EPD_BUSY = 4;   // connect EPD BUSY to GPIO 4 (D2)
+static const uint8_t EPD_CS = 15;    // connect EPD CS to GPIO 15 (D8)
+static const uint8_t EPD_RST = 2;    // connect EPD RST to GPIO 2 (D4)
+static const uint8_t EPD_DC = 0;     // connect EPD DC to GPIO 0 (D3)
+static const uint8_t EPD_SCK = 14;   // connect EPD CLK to GPIO 14 (D5)
+static const uint8_t EPD_MISO = 12;  // Master-In Slave-Out not used, as no data from display
+static const uint8_t EPD_MOSI = 13;  // connect EPD DIN to GPIO 13 (D7)
+#endif
+
 
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 
