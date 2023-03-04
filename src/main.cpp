@@ -28,7 +28,7 @@ enum alignment
   CENTER
 };
 
-#if defined (ESP32)
+#if defined(ESP32)
 // Connections for e.g. LOLIN D32
 static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
 static const uint8_t EPD_CS = 5;    // to EPD CS
@@ -39,20 +39,19 @@ static const uint8_t EPD_MISO = 19; // Master-In Slave-Out not used, as no data 
 static const uint8_t EPD_MOSI = 23; // to EPD DIN
 #endif
 
-#if defined (ESP8266) 
+#if defined(ESP8266)
 // mapping suggestion from Waveshare SPI e-Paper to Wemos D1 mini
 // BUSY -> D2, RST -> D4, DC -> D3, CS -> D8, CLK -> D5, DIN -> D7, GND -> GND, 3.3V -> 3.3V
 // NOTE: connect 3.3k pull-down from D8 to GND if your board or shield has level converters
 // NOTE for ESP8266: using SS (GPIO15) for CS may cause boot mode problems, use different pin in case, or 4k7 pull-down
-static const uint8_t EPD_BUSY = 4;   // connect EPD BUSY to GPIO 4 (D2)
-static const uint8_t EPD_CS = 15;    // connect EPD CS to GPIO 15 (D8)
-static const uint8_t EPD_RST = 2;    // connect EPD RST to GPIO 2 (D4)
-static const uint8_t EPD_DC = 0;     // connect EPD DC to GPIO 0 (D3)
-static const uint8_t EPD_SCK = 14;   // connect EPD CLK to GPIO 14 (D5)
-static const uint8_t EPD_MISO = 12;  // Master-In Slave-Out not used, as no data from display
-static const uint8_t EPD_MOSI = 13;  // connect EPD DIN to GPIO 13 (D7)
+static const uint8_t EPD_BUSY = 4;  // connect EPD BUSY to GPIO 4 (D2)
+static const uint8_t EPD_CS = 15;   // connect EPD CS to GPIO 15 (D8)
+static const uint8_t EPD_RST = 2;   // connect EPD RST to GPIO 2 (D4)
+static const uint8_t EPD_DC = 0;    // connect EPD DC to GPIO 0 (D3)
+static const uint8_t EPD_SCK = 14;  // connect EPD CLK to GPIO 14 (D5)
+static const uint8_t EPD_MISO = 12; // Master-In Slave-Out not used, as no data from display
+static const uint8_t EPD_MOSI = 13; // connect EPD DIN to GPIO 13 (D7)
 #endif
-
 
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 
@@ -80,8 +79,8 @@ void reconnectMqtt();
 void fetchJson(const char *url);
 void initDisplay();
 void drawSections();
-void drawString(int x, int y, String text, alignment align);
-void drawStringLine(int x, int y, String text, alignment align);
+void drawString(int x, int y, String text, alignment align, const uint8_t *font);
+void drawStringLine(int x, int y, String text, alignment align, const uint8_t *font);
 void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
 void displayData();
 uint8_t startWiFi();
@@ -117,8 +116,7 @@ void setup()
     }
     initDisplay(); // Give screen time to initialise by getting weather data!
     // WiFiClient client; // wifi client object
-    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-    drawString(4, 0, "WiFi", LEFT);
+    drawString(4, 0, "WiFi", LEFT, u8g2_font_helvB08_tf);
 
     // Time
     // configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
@@ -181,8 +179,7 @@ void setup()
   }
   else
   {
-    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-    drawString(4, 0, "XXXX", LEFT);
+    drawString(4, 0, "XXXX", LEFT, u8g2_font_helvB08_tf);
   }
 }
 
@@ -190,10 +187,10 @@ void loop()
 {
   // this will never run!
   loopTime();
-  if (!mqttClient.connected())
+  /*if (!mqttClient.connected())
   {
     reconnectMqtt();
-  }
+  }*/
   mqttClient.loop();
   ArduinoOTA.handle();
 }
@@ -258,14 +255,14 @@ uint8_t startWiFi()
   else
   {
     Serial.println("[WiFi]: Connection *** FAILED ***");
-    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-    drawString(4, 0, "XXXX", LEFT);
+    drawString(4, 0, "XXXX", LEFT, u8g2_font_helvB08_tf);
   }
   return connectionStatus;
 }
 
-void drawString(int x, int y, String text, alignment align)
+void drawString(int x, int y, String text, alignment align, const uint8_t *font)
 {
+  u8g2Fonts.setFont(font);
   char textArray[text.length() + 1];
   text.toCharArray(textArray, text.length() + 1);
   int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
@@ -292,9 +289,9 @@ void drawString(int x, int y, String text, alignment align)
   display.display(true); // partial update
 }
 
-void drawStringLine(int x, int y, String text, alignment align)
+void drawStringLine(int x, int y, String text, alignment align, const uint8_t *font)
 {
-  // u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+  u8g2Fonts.setFont(font);
   char textArray[text.length() + 1];
   text.toCharArray(textArray, text.length() + 1);
   int16_t textWidth = u8g2Fonts.getUTF8Width(textArray);
@@ -370,7 +367,7 @@ void initDisplay()
   u8g2Fonts.setFontDirection(0);             // left to right (this is default)
   u8g2Fonts.setForegroundColor(GxEPD_BLACK); // apply Adafruit GFX color
   u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // apply Adafruit GFX color
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);   // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
+  // u8g2Fonts.setFont(u8g2_font_helvB08_tf);   // select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
   display.fillScreen(GxEPD_WHITE);
   display.setFullWindow();
 }
@@ -400,8 +397,7 @@ void fetchJson(const char *url)
     ret += output ? "Ein" : "Aus";
     if (!ret.isEmpty())
     {
-      u8g2Fonts.setFont(SFProTextBold32);
-      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER, SFProTextBold32);
     }
   }
   if (!ret.isEmpty())
@@ -438,13 +434,11 @@ void printLocalTime(boolean updateTime)
 
   if (updateTime)
   {
-    u8g2Fonts.setFont(SFProTextBold55);
-    drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 5.0, ret, CENTER);
+    drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 5.0, ret, CENTER, SFProTextBold55);
   }
   else
   {
-    u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER);
+    drawString(SCREEN_WIDTH / 2, 0, ret, CENTER, u8g2_font_helvB08_tf);
   }
 }
 
@@ -477,8 +471,7 @@ void onMqttConnect(bool sessionPresent)
   Serial.println(sessionPresent);
   mqttClient.subscribe("test/topic");*/
 
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT);
+  drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT, u8g2_font_helvB08_tf);
   Serial.print("[MQTT]: Connecting... ");
   for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
   {
@@ -491,9 +484,9 @@ void onMqttConnect(bool sessionPresent)
 
 void onMqttDisconnect()
 {
-  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  drawString(SCREEN_WIDTH, 0, "XXXX", RIGHT);
+  drawString(SCREEN_WIDTH, 0, "XXXX", RIGHT, u8g2_font_helvB08_tf);
   Serial.print("[MQTT]: Disconnected... ");
+  Serial.println("[MQTT]: Reconnecting...");
   for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
   {
     Serial.print(mqtt_topics[i]);
@@ -501,13 +494,13 @@ void onMqttDisconnect()
     // mqttClient.subscribe(mqtt_topics[i], 2);
   }
   Serial.println("");
-  if (WiFi.isConnected())
+  /*if (WiFi.isConnected())
   {
     Serial.println("[MQTT]: Reconnecting...");
     reconnectMqtt();
     // check if disconnected
     // ESP.restart();
-  }
+  }*/
 }
 
 void onMqttMessage(char *topic, byte *payload, unsigned int len)
@@ -530,7 +523,6 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
 
   if (doc.containsKey("N"))
   {
-    u8g2Fonts.setFont(SFProTextBold32);
     if (doc["N"] == "22")
     {
       if (doc.containsKey("T2") && doc.containsKey("T4"))
@@ -548,7 +540,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
       }
       if (!ret.isEmpty())
       {
-        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER);
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER, SFProTextBold32);
       }
     }
     if (doc["N"] == "3f")
@@ -568,7 +560,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
       }
       if (!ret.isEmpty())
       {
-        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER);
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER, SFProTextBold32);
       }
     }
   }
@@ -580,8 +572,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
     ret += output ? "Ein" : "Aus";
     if (!ret.isEmpty())
     {
-      u8g2Fonts.setFont(SFProTextBold32);
-      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER);
+      drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.03, ret, CENTER, SFProTextBold32);
     }
   }
 
