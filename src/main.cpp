@@ -60,6 +60,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts; // Select u8g2 font from here: https://github.c
 int wifi_signal;
 long StartTime = 0;
 unsigned long previousMinute = 0;
+long lastReconnectAttempt = 0;
 
 // HTTPClient
 WiFiClient client; // or WiFiClientSecure for HTTPS
@@ -75,7 +76,7 @@ const int ledPin = 2;
 void initMqtt();
 void onMqttDisconnect();
 void onMqttMessage(char *topic, byte *payload, unsigned int len);
-void reconnectMqtt();
+boolean reconnectMqtt();
 void fetchJson(const char *url);
 void initDisplay();
 void drawSections();
@@ -187,11 +188,24 @@ void loop()
 {
   // this will never run!
   loopTime();
-  /*if (!mqttClient.connected())
+  if (!mqttClient.connected())
   {
-    reconnectMqtt();
-  }*/
-  mqttClient.loop();
+    long now = millis();
+    if (now - lastReconnectAttempt > 5000)
+    {
+      lastReconnectAttempt = now;
+      // Attempt to reconnect
+      if (reconnectMqtt())
+      {
+        lastReconnectAttempt = 0;
+      }
+    }
+  }
+  else
+  {
+    // Client connected
+    mqttClient.loop();
+  }
   ArduinoOTA.handle();
 }
 
@@ -486,7 +500,6 @@ void onMqttDisconnect()
 {
   drawString(SCREEN_WIDTH, 0, "XXXX", RIGHT, u8g2_font_helvB08_tf);
   Serial.print("[MQTT]: Disconnected... ");
-  Serial.println("[MQTT]: Reconnecting...");
   for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
   {
     Serial.print(mqtt_topics[i]);
@@ -585,23 +598,13 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
   }
 }
 
-void reconnectMqtt()
+boolean reconnectMqtt()
 {
-  // Attempt to reconnect to MQTT broker
-  while (!mqttClient.connected())
-  {
-    Serial.println("Connecting to MQTT broker...");
-    if (mqttClient.connect(hostname, mqtt_user, mqtt_pass))
-    {
-      Serial.println("Connected to MQTT broker");
-      initMqtt();
-      // return true;
-    }
-    else
-    {
-      Serial.println("Failed to connect to MQTT broker, retrying in 5 seconds...");
-      // delay(5000);
-      // return false;
-    }
+  if (mqttClient.connect(hostname)) {
+    // Once connected, publish an announcement...
+    mqttClient.publish("sensors/epaper/state","online");
+    // ... and resubscribe
+    onMqttConnect(false);
   }
+  return client.connected();
 }
