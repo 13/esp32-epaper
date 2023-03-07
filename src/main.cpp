@@ -600,11 +600,12 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
 
 boolean reconnectMqtt()
 {
-  if (mqttClient.connect(hostname)) {
+  /*if (mqttClient.connect(hostname)) {
     // Once connected, publish an announcement...
     mqttClient.publish("sensors/epaper/state","online");
     // ... and resubscribe
-    onMqttConnect(false);
-  }
+    onMqttConnect(true);
+  }*/
+  onMqttConnect(true);
   return client.connected();
 }
