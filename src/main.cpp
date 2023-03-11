@@ -1,7 +1,4 @@
 #include <Arduino.h>
-
-#include "credentials.h" // Wifi SSID and PASSWORD
-#include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
 #include <WiFi.h>        // Built-in
 #include "time.h"        // Built-in
 #include <SPI.h>         // Built-in
@@ -15,7 +12,8 @@
 #include <HTTPClient.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
-
+#include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
+#include "credentials.h" // Wifi SSID and PASSWORD
 // #define DEBUG
 
 #define SCREEN_WIDTH 300.0 // Set for landscape mode, don't remove the decimal place!
@@ -124,18 +122,19 @@ void setup()
     configTzTime(time_zone, ntpServers[0], ntpServers[1]);
     printLocalTime(true);
 
+    // Initialize the MQTT client
+    // Connect to MQTT broker
+    initMqtt();
+    mqttClient.setCallback(onMqttMessage);
+
     // FetchJson
-    for (int i = 0; i < sizeof(http_urls) / sizeof(http_urls[0]); i++)
+    /*for (int i = 0; i < sizeof(http_urls) / sizeof(http_urls[0]); i++)
     {
       Serial.print("[FETCH]: Fetching ");
       Serial.print(http_urls[i]);
       Serial.println(" ...");
       fetchJson(http_urls[i]);
-    }
-
-    // Initialize the MQTT client
-    initMqtt();
-    // mqttClient.setCallback(onMqttMessage);
+    }*/
 
     // ArduinoOTA
     // Port defaults to 3232
@@ -186,9 +185,9 @@ void setup()
 
 void loop()
 {
-  // this will never run!
   loopTime();
-  if (!mqttClient.connected())
+  // this will never run!
+  /*if (!mqttClient.connected())
   {
     long now = millis();
     if (now - lastReconnectAttempt > 5000)
@@ -205,7 +204,23 @@ void loop()
   {
     // Client connected
     mqttClient.loop();
+  }*/
+  if (!mqttClient.connected())
+  {
+    // Serial.print("[MQTT]: State ");
+    // Serial.println(mqttClient.state());
+    long now = millis();
+    if (now - lastReconnectAttempt > 5000)
+    {
+      lastReconnectAttempt = now;
+      // Attempt to reconnect
+      if (reconnectMqtt())
+      {
+        lastReconnectAttempt = 0;
+      }
+    }
   }
+  mqttClient.loop();
   ArduinoOTA.handle();
 }
 
@@ -475,8 +490,11 @@ void loopTime()
 void initMqtt()
 {
   // Connect to MQTT broker
+  Serial.println("[MQTT]: Initialization... ");
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setCallback(onMqttMessage);
+  Serial.print("[MQTT]: State ");
+  Serial.println(mqttClient.state());
 }
 void onMqttConnect(bool sessionPresent)
 {
@@ -518,13 +536,14 @@ void onMqttDisconnect()
 
 void onMqttMessage(char *topic, byte *payload, unsigned int len)
 {
-  /*Serial.print("Received message on topic: ");
+  Serial.println("[MQTT]: Received payload... ");
+  Serial.print("Received message on topic: ");
   Serial.print(topic);
   Serial.print(", payload: ");
-  for (int i = 0; i < length; i++) {
+  for (int i = 0; i < len; i++) {
     Serial.print((char)payload[i]);
   }
-  Serial.println();*/
+  Serial.println();
 
   // Parse the JSON data
   StaticJsonDocument<200> doc;
@@ -620,14 +639,26 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
 
 boolean reconnectMqtt()
 {
-  drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT, u8g2_font_helvB08_tf);
-  Serial.print("[MQTT]: Connecting... ");
-  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  drawString(SCREEN_WIDTH, 0, "oOoO", RIGHT, u8g2_font_helvB08_tf);
+  Serial.println("[MQTT]: Reconnecting... ");
+  if (mqttClient.connect(hostname))
   {
-    Serial.print(mqtt_topics[i]);
-    Serial.print(", ");
-    mqttClient.subscribe(mqtt_topics[i], 2);
+    /*for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+    {
+      Serial.print(mqtt_topics[i]);
+      Serial.print(", ");
+      mqttClient.subscribe(mqtt_topics[i], 2);
+    }
+    Serial.println(" OK");*/
+    onMqttConnect(true);
   }
-  Serial.println(" OK");
-  return client.connected();
+  else
+  {
+    drawString(SCREEN_WIDTH, 0, "oooO", RIGHT, u8g2_font_helvB08_tf);
+    Serial.println(" ERR");
+  }
+  Serial.print("[MQTT]: State ");
+  Serial.println(mqttClient.state());
+  // initMqtt();
+  return mqttClient.connected();
 }
