@@ -540,15 +540,15 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
     {
       if (doc.containsKey("T2") && doc.containsKey("T4"))
       {
-        float t2 = doc["T2"];
-        float t4 = doc["T4"];
-        ret += String((t2 + t4) / 2, 1);
+        float t2_22 = doc["T2"];
+        float t4_22 = doc["T4"];
+        ret += String((t2_22 + t4_22) / 2, 1);
         ret += "° ";
       }
       if (doc.containsKey("H4"))
       {
-        float h1 = doc["H4"];
-        ret += String(h1, 1);
+        float h1_22 = doc["H4"];
+        ret += String(h1_22, 1);
         ret += "%";
       }
       if (!ret.isEmpty())
@@ -556,19 +556,39 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
         drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER, SFProTextBold32);
       }
     }
-    if (doc["N"] == "3f")
+    if (doc["N"] == "87")
     {
       if (doc.containsKey("T1") && doc.containsKey("T2"))
       {
-        float t1 = doc["T1"];
-        float t2 = doc["T2"];
-        ret += String((t1 + t2) / 2, 1);
+        float t1_87 = doc["T1"];
+        float t2_87 = doc["T2"];
+        ret += String((t1_87 + t2_87) / 2, 1);
         ret += "° ";
       }
       if (doc.containsKey("H1"))
       {
-        float h1 = doc["H1"];
-        ret += String(h1, 1);
+        float h1_87 = doc["H1"];
+        ret += String(h1_87, 1);
+        ret += "%";
+      }
+      if (!ret.isEmpty())
+      {
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER, SFProTextBold32);
+      }
+    }
+    if (doc["N"] == "d5")
+    {
+      if (doc.containsKey("T1") && doc.containsKey("T2"))
+      {
+        float t1_d5 = doc["T1"];
+        float t2_d5 = doc["T2"];
+        ret += String((t1_d5 + t2_d5) / 2, 1);
+        ret += "° ";
+      }
+      if (doc.containsKey("H1"))
+      {
+        float h1_d5 = doc["H1"];
+        ret += String(h1_d5, 1);
         ret += "%";
       }
       if (!ret.isEmpty())
@@ -600,12 +620,14 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
 
 boolean reconnectMqtt()
 {
-  /*if (mqttClient.connect(hostname)) {
-    // Once connected, publish an announcement...
-    mqttClient.publish("sensors/epaper/state","online");
-    // ... and resubscribe
-    onMqttConnect(true);
-  }*/
-  onMqttConnect(true);
+  drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT, u8g2_font_helvB08_tf);
+  Serial.print("[MQTT]: Connecting... ");
+  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  {
+    Serial.print(mqtt_topics[i]);
+    Serial.print(", ");
+    mqttClient.subscribe(mqtt_topics[i], 2);
+  }
+  Serial.println(" OK");
   return client.connected();
 }
