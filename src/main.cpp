@@ -1,6 +1,4 @@
 #include <Arduino.h>
-
-#include "credentials.h" // Wifi SSID and PASSWORD
 #include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
 #include <WiFi.h>        // Built-in
 #include "time.h"        // Built-in
@@ -16,6 +14,8 @@
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 
+#include "credentials.h" // Wifi SSID and PASSWORD
+
 // #define DEBUG
 
 #define SCREEN_WIDTH 300.0 // Set for landscape mode, don't remove the decimal place!
@@ -30,13 +30,22 @@ enum alignment
 
 #if defined(ESP32)
 // Connections for e.g. LOLIN D32
-static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
+/*static const uint8_t EPD_BUSY = 4;  // to EPD BUSY
 static const uint8_t EPD_CS = 5;    // to EPD CS
 static const uint8_t EPD_RST = 16;  // to EPD RST
 static const uint8_t EPD_DC = 17;   // to EPD DC
 static const uint8_t EPD_SCK = 18;  // to EPD CLK
 static const uint8_t EPD_MISO = 19; // Master-In Slave-Out not used, as no data from display
-static const uint8_t EPD_MOSI = 23; // to EPD DIN
+static const uint8_t EPD_MOSI = 23; // to EPD DIN*/
+
+// Wemos S2 mini
+static const uint8_t EPD_BUSY = 9;  // to EPD BUSY
+static const uint8_t EPD_CS = 10;   // to EPD CS
+static const uint8_t EPD_RST = 7;   // to EPD RST
+static const uint8_t EPD_DC = 8;    // to EPD DC
+static const uint8_t EPD_SCK = 12;  // to EPD CLK
+static const uint8_t EPD_MISO = 13; // Master-In Slave-Out not used, as no data from display
+static const uint8_t EPD_MOSI = 11; // to EPD DIN
 #endif
 
 #if defined(ESP8266)
@@ -62,12 +71,10 @@ long StartTime = 0;
 unsigned long previousMinute = 0;
 long lastReconnectAttempt = 0;
 
-// HTTPClient
-WiFiClient client; // or WiFiClientSecure for HTTPS
-// MQTT
-PubSubClient mqttClient(client);
-
-HTTPClient http;
+// WiFi & MQTT
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+HTTPClient httpClient;
 
 // Led Pin
 const int ledPin = 2;
@@ -76,7 +83,7 @@ const int ledPin = 2;
 void initMqtt();
 void onMqttDisconnect();
 void onMqttMessage(char *topic, byte *payload, unsigned int len);
-boolean reconnectMqtt();
+boolean reconnectMqtt(String uid);
 void fetchJson(const char *url);
 void initDisplay();
 void drawSections();
@@ -90,19 +97,38 @@ void printLocalTime();
 void printLocalTime(boolean updateTime);
 void loopTime();
 
+// Last 4 digits of ChipID
+String getUniqueID()
+{
+  String uid = "0";
+  uid = WiFi.macAddress().substring(12);
+  uid.replace(":", "");
+  return uid;
+}
+
 void setup()
 {
   StartTime = millis();
   Serial.begin(115200);
   delay(10);
 #ifdef VERBOSE
-  delay(20);
+  delay(5000);
 #endif
   // Start Boot
   Serial.println(F("> "));
   Serial.println(F("> "));
   Serial.print(F("> Booting... Compiled: "));
-  Serial.println(F(__TIMESTAMP__));
+  Serial.println(GIT_VERSION);
+  Serial.print(F("> Node ID: "));
+  Serial.println(getUniqueID());
+#ifdef VERBOSE
+  Serial.print(("> Mode: "));
+  Serial.print(F("VERBOSE "));
+#ifdef DEBUG
+  Serial.print(F("DEBUG"));
+#endif
+  Serial.println();
+#endif
 
   pinMode(ledPin, OUTPUT);
   blinkLED();
@@ -134,7 +160,8 @@ void setup()
     }
 
     // Initialize the MQTT client
-    initMqtt();
+    mqttClient.setServer(mqtt_server, mqtt_port);
+    mqttClient.setCallback(onMqttMessage);
     // mqttClient.setCallback(onMqttMessage);
 
     // ArduinoOTA
@@ -187,7 +214,6 @@ void setup()
 void loop()
 {
   // this will never run!
-  loopTime();
   if (!mqttClient.connected())
   {
     long now = millis();
@@ -195,7 +221,7 @@ void loop()
     {
       lastReconnectAttempt = now;
       // Attempt to reconnect
-      if (reconnectMqtt())
+      if (reconnectMqtt(getUniqueID()))
       {
         lastReconnectAttempt = 0;
       }
@@ -206,6 +232,7 @@ void loop()
     // Client connected
     mqttClient.loop();
   }
+  loopTime();
   ArduinoOTA.handle();
 }
 
@@ -394,13 +421,13 @@ void displayData()
 // Fetch
 void fetchJson(const char *url)
 {
-  http.useHTTP10(true);
-  http.begin(client, url);
-  http.GET();
+  httpClient.useHTTP10(true);
+  httpClient.begin(wifiClient, url);
+  httpClient.GET();
 
   // Parse response
   DynamicJsonDocument doc(2048);
-  deserializeJson(doc, http.getStream());
+  deserializeJson(doc, httpClient.getStream());
 
   String ret;
 
@@ -423,7 +450,7 @@ void fetchJson(const char *url)
   }
 
   // Disconnect
-  http.end();
+  httpClient.end();
 }
 
 void printLocalTime()
@@ -478,7 +505,7 @@ void initMqtt()
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setCallback(onMqttMessage);
 }
-void onMqttConnect(bool sessionPresent)
+void onMqttConnect(bool sessionPresent, String uid)
 {
   /*Serial.println("Connected to MQTT broker");
   Serial.print("Session present: ");
@@ -486,14 +513,38 @@ void onMqttConnect(bool sessionPresent)
   mqttClient.subscribe("test/topic");*/
 
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT, u8g2_font_helvB08_tf);
-  Serial.print("[MQTT]: Connecting... ");
-  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  Serial.print("> [MQTT] Connecting...");
+
+  String clientId = "esp32-";
+  clientId += uid;
+  String lastWillTopic = "esp/";
+  lastWillTopic += clientId;
+  lastWillTopic += "/status";
+
+  if (mqttClient.connect(clientId.c_str(), lastWillTopic.c_str(), 1, true, "offline"))
   {
-    Serial.print(mqtt_topics[i]);
-    Serial.print(", ");
-    mqttClient.subscribe(mqtt_topics[i], 2);
+    Serial.println(" OK");
+    mqttClient.publish(lastWillTopic.c_str(), "online");
+    Serial.print("> [MQTT] Subscribing... ");
+    for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+    {
+      Serial.print(mqtt_topics[i]);
+      if (i == sizeof(mqtt_topics) / sizeof(mqtt_topics[0]))
+      {
+        Serial.print(" ");
+      }
+      else
+      {
+        Serial.print(", ");
+      }
+      mqttClient.subscribe(mqtt_topics[i]);
+    }
   }
-  Serial.println(" OK");
+  else
+  {
+    Serial.print(" failed, rc=");
+    Serial.println(mqttClient.state());
+  }
 }
 
 void onMqttDisconnect()
@@ -618,16 +669,41 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
   }
 }
 
-boolean reconnectMqtt()
+boolean reconnectMqtt(String uid)
 {
   drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT, u8g2_font_helvB08_tf);
-  Serial.print("[MQTT]: Connecting... ");
-  for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+  Serial.print("> [MQTT] Connecting...");
+
+  String clientId = "esp32-";
+  clientId += uid;
+  String lastWillTopic = "esp/";
+  lastWillTopic += clientId;
+  lastWillTopic += "/status";
+
+  if (mqttClient.connect(clientId.c_str(), lastWillTopic.c_str(), 1, true, "offline"))
   {
-    Serial.print(mqtt_topics[i]);
-    Serial.print(", ");
-    mqttClient.subscribe(mqtt_topics[i], 2);
+    Serial.println(" OK");
+    mqttClient.publish(lastWillTopic.c_str(), "online");
+    Serial.print("> [MQTT] Subscribing... ");
+    for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+    {
+      Serial.print(mqtt_topics[i]);
+      if (i == sizeof(mqtt_topics) / sizeof(mqtt_topics[0]))
+      {
+        Serial.print(" ");
+      }
+      else
+      {
+        Serial.print(", ");
+      }
+      mqttClient.subscribe(mqtt_topics[i]);
+    }
   }
-  Serial.println(" OK");
-  return client.connected();
+  else
+  {
+    Serial.print(" failed, rc=");
+    Serial.println(mqttClient.state());
+  }
+
+  return mqttClient.connected();
 }
