@@ -266,6 +266,9 @@ uint8_t startWiFi()
 {
   Serial.print("\r\n[WiFi] Connecting to: ");
   Serial.println(String(wifi_ssid));
+  String hn = "esp32-"
+  hostname += getUniqueID();
+  WiFi.setHostname(hn);
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
   WiFi.setAutoConnect(true);
@@ -519,7 +522,7 @@ void onMqttConnect(bool sessionPresent, String uid)
   clientId += uid;
   String lastWillTopic = "esp/";
   lastWillTopic += clientId;
-  lastWillTopic += "/status";
+  lastWillTopic += "/LWT";
 
   if (mqttClient.connect(clientId.c_str(), lastWillTopic.c_str(), 1, true, "offline"))
   {
@@ -678,12 +681,24 @@ boolean reconnectMqtt(String uid)
   clientId += uid;
   String lastWillTopic = "esp/";
   lastWillTopic += clientId;
-  lastWillTopic += "/status";
+  String stateTopic = lastWillTopic;
+  stateTopic += "/json";
+  lastWillTopic += "/LWT";
+
+  StaticJsonDocument<200> doc;
+  doc["hn"] = WiFi.getHostname();
+  doc["ip"] = WiFi.localIP().toString();
+  doc["ssid"] = WiFi.SSID();
+  doc["mac"] = WiFi.macAddress();
+
+  String jsonString;
+  serializeJson(doc, jsonString);
 
   if (mqttClient.connect(clientId.c_str(), lastWillTopic.c_str(), 1, true, "offline"))
   {
     Serial.println(" OK");
     mqttClient.publish(lastWillTopic.c_str(), "online");
+    mqttClient.publish(stateTopic.c_str(), jsonString);
     Serial.print("> [MQTT] Subscribing... ");
     for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
     {
