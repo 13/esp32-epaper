@@ -524,7 +524,7 @@ void onMqttConnect(bool sessionPresent, String uid)
   if (mqttClient.connect(clientId.c_str(), lastWillTopic.c_str(), 1, true, "offline"))
   {
     Serial.println(" OK");
-    mqttClient.publish(lastWillTopic.c_str(), "online");
+    mqttClient.publish(lastWillTopic.c_str(), "online", true);
     Serial.print("> [MQTT] Subscribing... ");
     for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
     {
@@ -683,7 +683,7 @@ boolean reconnectMqtt(String uid)
   if (mqttClient.connect(clientId.c_str(), lastWillTopic.c_str(), 1, true, "offline"))
   {
     Serial.println(" OK");
-    mqttClient.publish(lastWillTopic.c_str(), "online");
+    mqttClient.publish(lastWillTopic.c_str(), "online", true);
     Serial.print("> [MQTT] Subscribing... ");
     for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
     {
