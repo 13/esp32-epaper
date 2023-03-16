@@ -266,9 +266,9 @@ uint8_t startWiFi()
 {
   Serial.print("\r\n[WiFi] Connecting to: ");
   Serial.println(String(wifi_ssid));
-  String hn = "esp32-"
+  String hn = "esp32-";
   hn += getUniqueID();
-  WiFi.setHostname(hn);
+  WiFi.setHostname(hn.c_str());
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
   WiFi.setAutoConnect(true);
@@ -403,7 +403,7 @@ void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alig
 void initDisplay()
 {
   display.init(115200, true, 2, false);
-  display.setRotation(3);
+  display.setRotation(1); // 3
   SPI.end();
   SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
   u8g2Fonts.begin(display);                  // connect u8g2 procedures to Adafruit GFX
