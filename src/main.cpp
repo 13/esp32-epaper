@@ -2,6 +2,7 @@
 #include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
 #include <WiFi.h>        // Built-in
 #include "time.h"        // Built-in
+#include "esp_system.h"
 // Display
 #include <SPI.h> // Built-in
 #define ENABLE_GxEPD2_display 0
@@ -90,6 +91,32 @@ String wsSerializeJson(StaticJsonDocument<512> djDoc)
   return jsonStr;
 }
 
+String getResetReason()
+{
+  esp_reset_reason_t reason = esp_reset_reason();
+  switch (reason)
+  {
+  case ESP_RST_POWERON:
+    return "Power on reset";
+  case ESP_RST_EXT:
+    return "External reset";
+  case ESP_RST_SW:
+    return "Software reset";
+  case ESP_RST_PANIC:
+    return "Panic (crash) reset";
+  case ESP_RST_INT_WDT:
+    return "Internal watchdog reset";
+  case ESP_RST_TASK_WDT:
+    return "Task watchdog reset";
+  case ESP_RST_BROWNOUT:
+    return "Brownout reset";
+  case ESP_RST_SDIO:
+    return "SDIO reset";
+  default:
+    return "Unknown reset reason";
+  }
+}
+
 void getState()
 {
   if (WiFi.status() == WL_CONNECTED)
@@ -102,7 +129,7 @@ void getState()
     wsJson["wifi"]["ssid"] = WiFi.SSID();
     wsJson["wifi"]["rssi"] = WiFi.RSSI();
     wsJson["wifi"]["hostname"] = WiFi.getHostname();
-    // wsJson["wifi"]["reset"] = ESP.
+    wsJson["wifi"]["reset"] = getResetReason();
   }
 }
 
@@ -171,7 +198,7 @@ void connectToWiFi()
   WiFi.mode(WIFI_STA); // switch off AP
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
-  WiFi.hostname(hostname);
+  WiFi.setHostname(hostname.c_str());
   WiFi.begin(wifi_ssid, wifi_pass);
   Serial.print("> [WiFi] Connecting...");
   while (WiFi.status() != WL_CONNECTED)
@@ -190,7 +217,7 @@ void connectToWiFi()
     wsJson["wifi"]["ssid"] = WiFi.SSID();
     wsJson["wifi"]["rssi"] = WiFi.RSSI();
     wsJson["wifi"]["hostname"] = WiFi.getHostname();
-    // wsJson["wifi"]["reset"] = ESP.getResetReason();
+    wsJson["wifi"]["reset"] = getResetReason();
   }
 }
 
