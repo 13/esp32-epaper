@@ -5,7 +5,7 @@ const char* ssid     = "";
 const char* password = "";
 
 // Hostname
-const char* hostname = "epaper";
+//const char* hostname = "epaper";
 const char* ota_pass = "epr101";
 
 // Static IP

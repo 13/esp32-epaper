@@ -238,6 +238,22 @@ boolean connectToMqtt()
       Serial.println(" OK");
       mqttClient.publish(lastWillTopic.c_str(), "online", true);
       mqttClient.publish(ipTopic.c_str(), WiFi.localIP().toString().c_str(), true);
+
+      Serial.print("> [MQTT] Subscribing... ");
+      for (int i = 0; i < sizeof(mqtt_topics) / sizeof(mqtt_topics[0]); i++)
+      {
+        Serial.print(mqtt_topics[i]);
+        if (i == sizeof(mqtt_topics) / sizeof(mqtt_topics[0]))
+        {
+          Serial.print(" ");
+        }
+        else
+        {
+          Serial.print(", ");
+        }
+        mqttClient.subscribe(mqtt_topics[i]);
+      }
+      Serial.println(" OK");
     }
     else
     {
@@ -369,11 +385,11 @@ void setup()
     return;
   }
   connectToWiFi();
-  mqttClient.setServer(mqtt_server, mqtt_port);
+  /*mqttClient.setServer(mqtt_server, mqtt_port);
   if (WiFi.status() == WL_CONNECTED)
   {
     connectToMqtt();
-  }
+  }*/
 
   pinMode(ledPin, OUTPUT);
   blinkLED();
@@ -407,7 +423,6 @@ void setup()
     // Initialize the MQTT client
     mqttClient.setServer(mqtt_server, mqtt_port);
     mqttClient.setCallback(onMqttMessage);
-    // mqttClient.setCallback(onMqttMessage);
 
     // ArduinoOTA
     // Port defaults to 3232
