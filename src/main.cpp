@@ -2,7 +2,8 @@
 #include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
 #include <WiFi.h>        // Built-in
 #include "time.h"        // Built-in
-#include <SPI.h>         // Built-in
+// Display
+#include <SPI.h> // Built-in
 #define ENABLE_GxEPD2_display 0
 #include <GxEPD2_BW.h>
 #include <U8g2_for_Adafruit_GFX.h>
@@ -13,6 +14,12 @@
 #include <HTTPClient.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
+
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <FS.h>
+#define SPIFFS LittleFS
+#include <LittleFS.h>
 
 #include "credentials.h" // Wifi SSID and PASSWORD
 
@@ -48,20 +55,6 @@ static const uint8_t EPD_MISO = 13; // Master-In Slave-Out not used, as no data 
 static const uint8_t EPD_MOSI = 11; // to EPD DIN
 #endif
 
-#if defined(ESP8266)
-// mapping suggestion from Waveshare SPI e-Paper to Wemos D1 mini
-// BUSY -> D2, RST -> D4, DC -> D3, CS -> D8, CLK -> D5, DIN -> D7, GND -> GND, 3.3V -> 3.3V
-// NOTE: connect 3.3k pull-down from D8 to GND if your board or shield has level converters
-// NOTE for ESP8266: using SS (GPIO15) for CS may cause boot mode problems, use different pin in case, or 4k7 pull-down
-static const uint8_t EPD_BUSY = 4;  // connect EPD BUSY to GPIO 4 (D2)
-static const uint8_t EPD_CS = 15;   // connect EPD CS to GPIO 15 (D8)
-static const uint8_t EPD_RST = 2;   // connect EPD RST to GPIO 2 (D4)
-static const uint8_t EPD_DC = 0;    // connect EPD DC to GPIO 0 (D3)
-static const uint8_t EPD_SCK = 14;  // connect EPD CLK to GPIO 14 (D5)
-static const uint8_t EPD_MISO = 12; // Master-In Slave-Out not used, as no data from display
-static const uint8_t EPD_MOSI = 13; // connect EPD DIN to GPIO 13 (D7)
-#endif
-
 GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(/*CS=D8*/ EPD_CS, /*DC=D3*/ EPD_DC, /*RST=D4*/ EPD_RST, /*BUSY=D2*/ EPD_BUSY));
 
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts; // Select u8g2 font from here: https://github.com/olikraus/u8g2/wiki/fntlistall
@@ -75,9 +68,164 @@ long lastReconnectAttempt = 0;
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 HTTPClient httpClient;
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+long mqttLastReconnectAttempt = 0;
+
+StaticJsonDocument<512> wsJson;
+
+String hostname = "esp32-";
 
 // Led Pin
 const int ledPin = 2;
+
+String wsSerializeJson(StaticJsonDocument<512> djDoc)
+{
+  String jsonStr;
+  // wsJson["uptime"] = printUptime();
+  wsJson["wifi"]["rssi"] = WiFi.RSSI();
+  serializeJson(djDoc, jsonStr);
+  Serial.print("> [WS] ");
+  Serial.println(jsonStr);
+  return jsonStr;
+}
+
+void getState()
+{
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.print("> [WiFi] IP: ");
+    Serial.println(WiFi.localIP().toString());
+
+    wsJson["wifi"]["ip"] = WiFi.localIP().toString();
+    wsJson["wifi"]["mac"] = WiFi.macAddress();
+    wsJson["wifi"]["ssid"] = WiFi.SSID();
+    wsJson["wifi"]["rssi"] = WiFi.RSSI();
+    wsJson["wifi"]["hostname"] = WiFi.getHostname();
+    // wsJson["wifi"]["reset"] = ESP.
+  }
+}
+
+String getIP()
+{
+  return String(WiFi.localIP().toString());
+}
+
+void notifyClients()
+{
+  ws.textAll(wsSerializeJson(wsJson));
+}
+
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
+{
+  AwsFrameInfo *info = (AwsFrameInfo *)arg;
+  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT)
+  {
+    data[len] = 0;
+    notifyClients();
+  }
+}
+
+void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
+             void *arg, uint8_t *data, size_t len)
+{
+  switch (type)
+  {
+  case WS_EVT_CONNECT:
+    Serial.printf("> [WebSocket] Client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+    getState();
+    notifyClients();
+    break;
+  case WS_EVT_DISCONNECT:
+    Serial.printf("> [WebSocket] Client #%u disconnected\n", client->id());
+    break;
+  case WS_EVT_DATA:
+    handleWebSocketMessage(arg, data, len);
+    break;
+  case WS_EVT_PONG:
+  case WS_EVT_ERROR:
+    break;
+  }
+}
+
+void initWebSocket()
+{
+  ws.onEvent(onEvent);
+  server.addHandler(&ws);
+}
+
+// Replaces placeholder with LED state value
+String processor(const String &var)
+{
+  Serial.println(var);
+  if (var == "ip")
+  {
+    return getIP();
+  }
+  return String();
+}
+
+void connectToWiFi()
+{
+  WiFi.disconnect();
+  WiFi.mode(WIFI_STA); // switch off AP
+  WiFi.setAutoConnect(true);
+  WiFi.setAutoReconnect(true);
+  WiFi.hostname(hostname);
+  WiFi.begin(wifi_ssid, wifi_pass);
+  Serial.print("> [WiFi] Connecting...");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(1000);
+  }
+  Serial.println(" OK");
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.print("> [WiFi] IP: ");
+    Serial.println(WiFi.localIP().toString());
+
+    wsJson["wifi"]["ip"] = WiFi.localIP().toString();
+    wsJson["wifi"]["mac"] = WiFi.macAddress();
+    wsJson["wifi"]["ssid"] = WiFi.SSID();
+    wsJson["wifi"]["rssi"] = WiFi.RSSI();
+    wsJson["wifi"]["hostname"] = WiFi.getHostname();
+    // wsJson["wifi"]["reset"] = ESP.getResetReason();
+  }
+}
+
+boolean connectToMqtt()
+{
+
+  String lastWillTopic = "esp/";
+  lastWillTopic += hostname;
+  String ipTopic = lastWillTopic;
+  ipTopic += "/IP";
+  lastWillTopic += "/LWT";
+
+  if (!mqttClient.connected())
+  {
+    Serial.print("> [MQTT] Connecting...");
+    if (mqttClient.connect(hostname.c_str(), lastWillTopic.c_str(), 1, true, "offline"))
+    {
+      Serial.println(" OK");
+      mqttClient.publish(lastWillTopic.c_str(), "online", true);
+      mqttClient.publish(ipTopic.c_str(), WiFi.localIP().toString().c_str(), true);
+    }
+    else
+    {
+      Serial.print(" failed, rc=");
+      Serial.println(mqttClient.state());
+    }
+  }
+  else
+  {
+    // Serial.println("> [MQTT] Connected");
+    mqttClient.publish(lastWillTopic.c_str(), "online", true);
+    mqttClient.publish(ipTopic.c_str(), WiFi.localIP().toString().c_str(), true);
+  }
+  return mqttClient.connected();
+}
 
 // MQTT
 void initMqtt();
@@ -106,6 +254,62 @@ String getUniqueID()
   return uid;
 }
 
+#ifdef VERBOSE
+// one minute mark
+#define MARK
+#define INTERVAL_1MIN (1 * 60 * 1000L)
+unsigned long lastMillis = 0L;
+uint32_t countMsg = 0;
+#endif
+
+// supplementary functions
+#ifdef MARK
+void printMARK()
+{
+  if (countMsg == 0)
+  {
+    Serial.println(F("> [MARK] Starting... OK"));
+    countMsg++;
+  }
+  if (countMsg == UINT32_MAX)
+  {
+    countMsg = 1;
+  }
+  if (millis() - lastMillis >= INTERVAL_1MIN)
+  {
+    Serial.print(F("> [MARK] Uptime: "));
+
+    if (countMsg >= 60)
+    {
+      int hours = countMsg / 60;
+      int remMins = countMsg % 60;
+      if (hours >= 24)
+      {
+        int days = hours / 24;
+        hours = hours % 24;
+        Serial.print(days);
+        Serial.print(F("d "));
+      }
+      Serial.print(hours);
+      Serial.print(F("h "));
+      Serial.print(remMins);
+      Serial.println(F("m"));
+    }
+    else
+    {
+      Serial.print(countMsg);
+      Serial.println(F("m"));
+    }
+    countMsg++;
+    lastMillis += INTERVAL_1MIN;
+
+    // 1 minute status update
+    connectToMqtt();
+    notifyClients();
+  }
+}
+#endif
+
 void setup()
 {
   StartTime = millis();
@@ -121,6 +325,7 @@ void setup()
   Serial.println(GIT_VERSION);
   Serial.print(F("> Node ID: "));
   Serial.println(getUniqueID());
+  hostname += getUniqueID();
 #ifdef VERBOSE
   Serial.print(("> Mode: "));
   Serial.print(F("VERBOSE "));
@@ -130,6 +335,19 @@ void setup()
   Serial.println();
 #endif
 
+  // Initialize LittleFS
+  if (!LittleFS.begin())
+  {
+    Serial.println(F("> [LittleFS] ERROR "));
+    return;
+  }
+  connectToWiFi();
+  mqttClient.setServer(mqtt_server, mqtt_port);
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    connectToMqtt();
+  }
+
   pinMode(ledPin, OUTPUT);
   blinkLED();
 
@@ -137,7 +355,7 @@ void setup()
 
   if (startWiFi() == WL_CONNECTED)
   {
-    if (MDNS.begin(hostname))
+    if (MDNS.begin(hostname.c_str()))
     {
       Serial.println("[MDNS]: Responder started");
     }
@@ -169,7 +387,7 @@ void setup()
     // ArduinoOTA.setPort(3232);
 
     // Hostname defaults to esp3232-[MAC]
-    ArduinoOTA.setHostname(hostname);
+    ArduinoOTA.setHostname(hostname.c_str());
 
     // No authentication by default
     // ArduinoOTA.setPassword("admin");
@@ -209,31 +427,55 @@ void setup()
   {
     drawString(4, 0, "XXXX", LEFT, u8g2_font_helvB08_tf);
   }
+
+  initWebSocket();
+  // Route for root / web page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(LittleFS, "/index.html", String(), false, processor); });
+  server.on("/css/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(LittleFS, "/css/bootstrap.min.css", "text/css"); });
+  server.on("/js/bootstrap.bundle.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(LittleFS, "/js/bootstrap.bundle.min.js", "text/javascript"); });
+  server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(LittleFS, "/favicon.ico", "image/x-icon"); });
+  server.on("/ip", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/plain", getIP().c_str()); });
+  server.on("/json", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(200, "application/json", wsSerializeJson(wsJson)); });
+  // Start server
+  server.begin();
 }
 
 void loop()
 {
-  // this will never run!
+  ws.cleanupClients();
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    connectToWiFi();
+  }
   if (!mqttClient.connected())
   {
-    long now = millis();
-    if (now - lastReconnectAttempt > 5000)
+    Serial.println("> [MQTT] Not connected loop");
+    long mqttNow = millis();
+    if (mqttNow - mqttLastReconnectAttempt > 5000)
     {
-      lastReconnectAttempt = now;
+      mqttLastReconnectAttempt = mqttNow;
       // Attempt to reconnect
-      if (reconnectMqtt(getUniqueID()))
+      if (connectToMqtt())
       {
-        lastReconnectAttempt = 0;
+        mqttLastReconnectAttempt = 0;
       }
     }
   }
   else
   {
-    // Client connected
     mqttClient.loop();
   }
   loopTime();
   ArduinoOTA.handle();
+#ifdef MARK
+  printMARK();
+#endif
 }
 
 void blinkLED()
