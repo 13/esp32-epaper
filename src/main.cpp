@@ -223,7 +223,7 @@ void connectToWiFi()
 
 boolean connectToMqtt()
 {
-
+  drawString(SCREEN_WIDTH, 0, "MQTT", RIGHT, u8g2_font_helvB08_tf);
   String lastWillTopic = "esp/";
   lastWillTopic += hostname;
   String ipTopic = lastWillTopic;
