@@ -201,12 +201,16 @@ void connectToWiFi()
   WiFi.setHostname(hostname.c_str());
   WiFi.begin(wifi_ssid, wifi_pass);
   Serial.print("> [WiFi] Connecting...");
-  while (WiFi.status() != WL_CONNECTED)
+  for (int i = 0; i < 20; i++)
   {
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      Serial.println(" OK");
+      break;
+    }
     Serial.print(".");
     delay(1000);
   }
-  Serial.println(" OK");
   if (WiFi.status() == WL_CONNECTED)
   {
     Serial.print("> [WiFi] IP: ");
@@ -218,6 +222,11 @@ void connectToWiFi()
     wsJson["wifi"]["rssi"] = WiFi.RSSI();
     wsJson["wifi"]["hostname"] = WiFi.getHostname();
     wsJson["wifi"]["reset"] = getResetReason();
+  }
+  else
+  {
+    Serial.println(" ERR TIMEOUT");
+    drawString(4, 0, "XXXX", LEFT, u8g2_font_helvB08_tf);
   }
 }
 
@@ -259,6 +268,7 @@ boolean connectToMqtt()
     {
       Serial.print(" failed, rc=");
       Serial.println(mqttClient.state());
+      drawString(SCREEN_WIDTH, 0, "XXXX", RIGHT, u8g2_font_helvB08_tf);
     }
   }
   else
