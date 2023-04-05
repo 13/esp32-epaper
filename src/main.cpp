@@ -192,6 +192,26 @@ String processor(const String &var)
   return String();
 }
 
+// MQTT
+boolean connectToMqtt();
+void connectToWiFi();
+void initMqtt();
+void onMqttDisconnect();
+void onMqttMessage(char *topic, byte *payload, unsigned int len);
+boolean reconnectMqtt(String uid);
+void fetchJson(const char *url);
+void initDisplay();
+void drawSections();
+void drawString(int x, int y, String text, alignment align, const uint8_t *font);
+void drawStringLine(int x, int y, String text, alignment align, const uint8_t *font);
+void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
+void displayData();
+uint8_t startWiFi();
+void blinkLED();
+void printLocalTime();
+void printLocalTime(boolean updateTime);
+void loopTime();
+
 void connectToWiFi()
 {
   WiFi.disconnect();
@@ -279,24 +299,6 @@ boolean connectToMqtt()
   }
   return mqttClient.connected();
 }
-
-// MQTT
-void initMqtt();
-void onMqttDisconnect();
-void onMqttMessage(char *topic, byte *payload, unsigned int len);
-boolean reconnectMqtt(String uid);
-void fetchJson(const char *url);
-void initDisplay();
-void drawSections();
-void drawString(int x, int y, String text, alignment align, const uint8_t *font);
-void drawStringLine(int x, int y, String text, alignment align, const uint8_t *font);
-void drawStringMaxWidth(int x, int y, unsigned int text_width, String text, alignment align);
-void displayData();
-uint8_t startWiFi();
-void blinkLED();
-void printLocalTime();
-void printLocalTime(boolean updateTime);
-void loopTime();
 
 // Last 4 digits of ChipID
 String getUniqueID()
