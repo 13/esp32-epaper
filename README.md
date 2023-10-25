@@ -69,6 +69,7 @@ git clone https://github.com/13/esp32-epaper.git
 - [ ] Add style (seperation lines)
 - [ ] Add powersave
 - [ ] Add last time update
+- [ ] Add battery low
 
 ## Release History
 
