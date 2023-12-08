@@ -34,6 +34,7 @@ extern NTPClient timeClient;
 
 extern String hostname;
 extern const char* mqtt_topic_lwt;
+extern const char* mqtt_topics[];
 extern uint32_t countMsg;
 extern unsigned long lastMillis;
 extern wsData myData;
@@ -58,6 +59,7 @@ void printMARK();
 // mqtt
 void checkMqtt();
 boolean connectToMqtt();
+void subscribeMqtt();
 // http & websocket
 String wsSerializeJson();
 void notifyClients();

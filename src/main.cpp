@@ -65,8 +65,10 @@ void setup()
   initFS();
   connectToWiFi();
   mqttClient.setServer(mqtt_server, mqtt_port);
+  mqttClient.setCallback(onMqttMessage);
   if (WiFi.status() == WL_CONNECTED)
   {
+    initMDNS();
     connectToMqtt();
     timeClient.begin();
     timeClient.update();

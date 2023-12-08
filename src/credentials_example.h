@@ -14,7 +14,7 @@ IPAddress gw(192, 168, 22, 6);
 IPAddress dns1(192, 168, 22, 6);
 IPAddress dns2(8, 8, 8, 8);
 
-/* MQTT server credentials */
+// MQTT server credentials
 const char* mqtt_user = "";
 const char* mqtt_pass = "";
 const char* mqtt_server = "192.168.22.5";
@@ -22,8 +22,10 @@ const char* mqtt_topic = "muh/sensors";
 const char* mqtt_topic_lwt = "muh/esp";
 uint16_t mqtt_port = 1883;
 const char* mqtt_topics[] = { "shellies/HZ_DG/status/switch:0", 
-                              "sensors/22/json",
-                              "sensors/3f/json" };
+                              "muh/sensors/22/json",
+                              "muh/sensors/d5/json",
+                              NULL };
+                              //"muh/sensors/d5/json""muh/WStation/data/B327",
 // Fetch URLs
 const char* http_urls[] = { "http://192.168.22.70/rpc/Shelly.GetStatus" };
 

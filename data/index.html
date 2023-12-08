@@ -19,46 +19,54 @@
         <div class="row">
           <div class="col">
             <div id="hostname" class="display-6 text-center"></div>
-            <p id="desc" class="lead text-center">arduino cc1101 receiver</p>
-              <div>
-                <table class="table table-hover mb-0">
-                  <tbody>
-                    <tr>
-                      <th class="ps-3">
-                        <span class="labelMqtt">SSID: </span>
-                      </th>
-                      <td class="text-end">
-                        <span id="ssid"></span> (<span id="rssi"></span>)
-                      </td>
-                    </tr>
-                    <tr>
-                      <th class="ps-3"><span class="labelIp">IP: </span></th>
-                      <td class="text-end"><span id="ip"></span></td>
-                    </tr>
-                    <tr>
-                      <th class="ps-3">
-                        <span class="labelUptime">Uptime: </span>
-                      </th>
-                      <td class="text-end"><span id="uptime"></span></td>
-                    </tr>
-                    <tr>
-                      <th class="ps-3">
-                        <span class="labelRam">RAM: </span>
-                      </th>
-                      <td class="text-end">
-                        <span id="memfree"></span><span id="memfrag"></span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <th class="ps-3">
-                        <span class="labelReset">Reset: </span>
-                      </th>
-                      <td class="text-end"><span id="reset"></span></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
+            <p id="desc" class="lead text-center">arduino epaper</p>
+            <div>
+              <table class="table table-hover mb-0">
+                <tbody>
+                  <tr>
+                    <th class="ps-3">
+                      <span class="labelMqtt">SSID: </span>
+                    </th>
+                    <td class="text-end">
+                      <span id="ssid"></span> (<span id="rssi"></span>)
+                    </td>
+                  </tr>
+                  <tr>
+                    <th class="ps-3"><span class="labelIp">IP: </span></th>
+                    <td class="text-end"><span id="ip"></span></td>
+                  </tr>
+                  <tr>
+                    <th class="ps-3">
+                      <span class="labelUptime">Uptime: </span>
+                    </th>
+                    <td class="text-end"><span id="uptime"></span></td>
+                  </tr>
+                  <tr>
+                    <th class="ps-3">
+                      <span class="labelRam">Free Memory: </span>
+                    </th>
+                    <td class="text-end">
+                      <span id="memfree"></span><span id="memfrag"></span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th class="ps-3">
+                      <span class="labelResetreason">Reset: </span>
+                    </th>
+                    <td class="text-end"><span id="resetreason"></span></td>
+                  </tr>
+                  <tr>
+                    <th class="ps-3">
+                      <span class="labelTimestamp">Last Update: </span>
+                    </th>
+                    <td class="text-end"><span id="timestamp"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <table class="table table-hover mb-0">
+                <tbody id="packets"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -112,7 +120,8 @@
         const hostnameElement = document.getElementById("hostname");
         const ipElement = document.getElementById("ip");
         const ssidElement = document.getElementById("ssid");
-        const resetElement = document.getElementById("reset");
+        const resetreasonElement = document.getElementById("resetreason");
+        const timestampElement = document.getElementById("timestamp");
         const versionElement = document.getElementById("version");
         const uptimeElement = document.getElementById("uptime");
         const rssiElement = document.getElementById("rssi");
@@ -129,34 +138,134 @@
         if (parsedData.ssid) {
           ssidElement.innerHTML = parsedData.ssid;
         }
-        if (parsedData.reset) {
-          resetElement.innerHTML = parsedData.reset;
+        if (parsedData.resetreason) {
+          resetreasonElement.innerHTML = parsedData.resetreason;
         }
+
+        // Last update timestamp
+        if (
+          parsedData.timestamp &&
+          parsedData.timestamp !== null &&
+          parsedData.timestamp !== ""
+        ) {
+          const timestamp = new Date((parsedData.timestamp - 3600) * 1000);
+          timestampElement.innerHTML =
+            timestamp.getHours().toString().padStart(2, "0") +
+            ":" +
+            timestamp.getMinutes().toString().padStart(2, "0") +
+            ":" +
+            timestamp.getSeconds().toString().padStart(2, "0");
+        }
+
         if (parsedData.version) {
-          versionElement.innerHTML = '<a href="/update.html" class="">' + parsedData.version + '</a>';
+          versionElement.innerHTML =
+            '<a href="/update.html" class="link-light link-offset-2 link-underline link-underline-opacity-0 text-muted small">' +
+            parsedData.version +
+            "</a>";
         }
         if (parsedData.memfree) {
           memFreeElement.innerHTML =
-            (parsedData.memfree / 1024).toFixed(2) + "KB";
+            (parsedData.memfree / 1024).toFixed(1) + "KB";
         }
         if (parsedData.memfrag) {
-          memFragElement.innerHTML = " (" + parsedData.memfrag + "%)";
+          memFragElement.innerHTML = " (frag. " + parsedData.memfrag + "%)";
         }
-        if (parsedData.uptime) {
-          const totalMinutes = parsedData.uptime;
-          const totalMinutesPerDay = 24 * 60;
-          const days = Math.floor(totalMinutes / totalMinutesPerDay);
-          const hours = Math.floor(
-            totalMinutes / 60 - Math.floor(totalMinutes / totalMinutesPerDay) * 24
+
+        // Uptime old
+        /*if (parsedData.uptime &&
+            parsedData.boottime !== null &&
+            parsedData.boottime !== "") {
+            const totalMinutes = parsedData.uptime;
+            const totalMinutesPerDay = 24 * 60;
+            const days = Math.floor(totalMinutes / totalMinutesPerDay);
+            const hours = Math.floor((totalMinutes % totalMinutesPerDay) / 60);
+            const minutes = totalMinutes % 60;
+
+            // Function to pad single-digit values with leading zeros
+            const padWithZero = (value) =>
+              value < 10 ? `0${value}` : `${value}`;
+
+            const formattedUptime = `${days ? days + "T" : ""}${padWithZero(
+              hours
+            )}:${padWithZero(minutes)}:01`;
+          uptimeElement.innerHTML = formattedUptime;
+        }*/
+        // Uptime
+        if (
+          parsedData.boottime &&
+          parsedData.boottime !== null &&
+          parsedData.boottime !== ""
+        ) {
+          var currentUnixTime = Math.floor(Date.now() / 1000 + 3600);
+          var uptimeInSeconds = currentUnixTime - parsedData.boottime;
+          var days = Math.floor(uptimeInSeconds / (24 * 60 * 60));
+          var hours = Math.floor(
+            (uptimeInSeconds % (24 * 60 * 60)) / (60 * 60)
           );
-          const minutes = totalMinutes - (hours * 60);
-          const formattedUptime = `${days ? days + "d " : ""}${
-            hours ? hours + "h " : ""
-          }${minutes}m`;
+          var minutes = Math.floor((uptimeInSeconds % (60 * 60)) / 60);
+          var seconds = uptimeInSeconds % 60;
+          var formattedUptime =
+            days +
+            "T" +
+            hours.toString().padStart(2, "0") +
+            ":" +
+            minutes.toString().padStart(2, "0") +
+            ":" +
+            seconds.toString().padStart(2, "0");
+
           uptimeElement.innerHTML = formattedUptime;
         }
+
         if (parsedData.rssi) {
-          rssiElement.innerHTML = parsedData.rssi;
+          const rssi = parsedData.rssi;
+          const maxRSSI = 0;
+          const minRSSI = -100;
+          const signalStrengthPercentage = Math.max(
+            0,
+            Math.min(100, ((rssi - minRSSI) / (maxRSSI - minRSSI)) * 100)
+          );
+
+          rssiElement.innerHTML = `${signalStrengthPercentage.toFixed(
+            0
+          )}%, ${rssi} dBm`;
+        }
+
+        if (
+          parsedData.packets &&
+          parsedData.packets !== null &&
+          parsedData.packets[0] !== ""
+        ) {
+          const packetsElement = document.getElementById("packets");
+          packetsElement.innerHTML =
+            '<tr><th class="ps-3">Last Packets:</th></tr>';
+
+          const listContent = parsedData.packets
+            .filter((element) => element !== null && element !== "")
+            .map((element) => {
+              const packetData = JSON.parse(element);
+              delete packetData.RN;
+
+              const packetTs = new Date((packetData.timestamp - 3600) * 1000);
+              const formattedPacketTs =
+                packetTs.getHours().toString().padStart(2, "0") +
+                ":" +
+                packetTs.getMinutes().toString().padStart(2, "0") +
+                ":" +
+                packetTs.getSeconds().toString().padStart(2, "0");
+
+              delete packetData.timestamp;
+              const tsPair = { X: formattedPacketTs };
+              const newPacketData = { ...tsPair, ...packetData };
+              const serializedData = JSON.stringify(newPacketData);
+              return (
+                '<tr><td class="ps-3 text-break">' +
+                `${serializedData}` +
+                "</td></tr>"
+              );
+            })
+            .join("");
+
+          packetsElement.innerHTML += listContent;
         }
       }
 

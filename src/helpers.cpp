@@ -201,6 +201,10 @@ boolean connectToMqtt()
       mqttClient.publish(lastWillTopic.c_str(), "online", true);
       mqttClient.publish(ipTopic.c_str(), WiFi.localIP().toString().c_str(), true);
       mqttClient.publish(versionTopic.c_str(), VERSION, true);
+      if (mqtt_topics[0] != NULL)
+      {
+        subscribeMqtt();
+      }
     }
     else
     {
@@ -215,7 +219,20 @@ boolean connectToMqtt()
     mqttClient.publish(ipTopic.c_str(), WiFi.localIP().toString().c_str(), true);
     mqttClient.publish(versionTopic.c_str(), VERSION, true);
   }
+
   return mqttClient.connected();
+}
+
+void subscribeMqtt()
+{
+  // int numTopics = sizeof(mqtt_topics) / sizeof(mqtt_topics[0]);
+  for (int i = 0; mqtt_topics[i] != NULL; i++)
+  {
+    Serial.print("[MQTT]: Subscribing ");
+    Serial.print(mqtt_topics[i]);
+    Serial.println(" ... OK");
+    mqttClient.subscribe(mqtt_topics[i]);
+  }
 }
 
 // http & websocket
@@ -228,7 +245,8 @@ String wsSerializeJson()
   myData.memfrag = ESP.getHeapFragmentation();
 #endif
 #if defined(ESP32)
-  myData.memfrag = ESP.getMaxAllocHeap();
+  uint8_t fragmentationPercentage = static_cast<uint8_t>((100 * (myData.memfree - ESP.getMaxAllocHeap())) / myData.memfree);
+  myData.memfrag = fragmentationPercentage;
 #endif
   myData.timestamp = timeClient.getEpochTime();
   String jsonStr = myData.toJson();
