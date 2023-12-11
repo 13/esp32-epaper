@@ -2,14 +2,14 @@
 
 void drawSections()
 {
-  // u8g2Fonts.setFont(u8g2_font_helvB08_tf);
-  // display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  //display.drawLine(0, 12, SCREEN_WIDTH, 12, GxEPD_BLACK);
 
-  // display.drawLine(0, (SCREEN_HEIGHT / 1.8) + 35, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.8) + 35, GxEPD_BLACK);
-  // drawString(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 1.8) + 55, "INSIDE", CENTER);
+  //display.drawLine(0, (SCREEN_HEIGHT / 1.8) + 35, SCREEN_WIDTH, (SCREEN_HEIGHT / 1.8) + 35, GxEPD_BLACK);
+  drawStringLine(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 1.8) + 45, "INSIDE", CENTER, u8g2_font_helvB08_tf);
 
-  // display.drawLine(0, (SCREEN_HEIGHT / 2.8) + 50, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.8) + 50, GxEPD_BLACK);
-  // drawStringLine(SCREEN_WIDTH / 2.8, (SCREEN_HEIGHT / 2.8) + 40, "OUTSIDE", CENTER);
+  //display.drawLine(0, (SCREEN_HEIGHT / 2.8) + 50, SCREEN_WIDTH, (SCREEN_HEIGHT / 2.8) + 50, GxEPD_BLACK);
+  drawStringLine(SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 2.8) + 20, "OUTSIDE", CENTER, u8g2_font_helvB08_tf);
 }
 
 void drawString(int x, int y, String text, alignment align, const uint8_t *font)

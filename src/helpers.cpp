@@ -46,15 +46,19 @@ void getState()
     myData.mac = WiFi.macAddress();
     myData.ssid = WiFi.SSID();
     myData.rssi = WiFi.RSSI();
+    myData.desc = desc;
+    myData.hostname = hostname;
 #if defined(ESP8266)
-    myData.hostname = WiFi.hostname();
+    // myData.hostname = WiFi.hostname();
     myData.resetreason = ESP.getResetReason();
     myData.memfrag = ESP.getHeapFragmentation();
+    myData.cpu = String(ESP.getChipId());
 #endif
 #if defined(ESP32)
-    myData.hostname = WiFi.getHostname();
+    // myData.hostname = WiFi.getHostname();
     myData.resetreason = esp_reset_reason();
     myData.memfrag = ESP.getMaxAllocHeap();
+    myData.cpu = String(ESP.getChipModel()) + "(v" + String(ESP.getChipRevision()) + ")" + " CPU" + String(ESP.getChipCores());
 #endif
     myData.memfree = ESP.getFreeHeap();
     myData.uptime = countMsg;
@@ -104,9 +108,22 @@ void printMARK()
     lastMillis += INTERVAL_1MIN;
 
     // 1 minute status update
-    connectToMqtt();
-    timeClient.update();
-    notifyClients();
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      connectToMqtt();
+      timeClient.update();
+      notifyClients();
+    }
+#ifndef REQUIRES_INTERNET
+    if (countMsg % 1440 == 0)
+    {
+      checkWiFi();
+      if (WiFi.status() != WL_CONNECTED)
+      {
+        reboot();
+      }
+    }
+#endif
   }
 }
 
@@ -146,7 +163,9 @@ void connectToWiFi()
     if (WiFi.localIP() == IPAddress(0, 0, 0, 0))
     {
       Serial.println(" NO DHCP LEASE");
+#ifdef REQUIRES_INTERNET
       reboot();
+#endif
     }
 
     getState();
@@ -154,30 +173,35 @@ void connectToWiFi()
   else
   {
     Serial.println(" ERR TIMEOUT");
+#ifdef REQUIRES_INTERNET
     reboot();
+#endif
   }
 }
 
 // MQTT
 void checkMqtt()
 {
-  if (!mqttClient.connected())
+  if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.println("> [MQTT] Not connected loop");
-    long mqttNow = millis();
-    if (mqttNow - mqttLastReconnectAttempt > 5000)
+    if (!mqttClient.connected())
     {
-      mqttLastReconnectAttempt = mqttNow;
-      // Attempt to reconnect
-      if (connectToMqtt())
+      Serial.println("> [MQTT] Not connected loop");
+      long mqttNow = millis();
+      if (mqttNow - mqttLastReconnectAttempt > 5000)
       {
-        mqttLastReconnectAttempt = 0;
+        mqttLastReconnectAttempt = mqttNow;
+        // Attempt to reconnect
+        if (connectToMqtt())
+        {
+          mqttLastReconnectAttempt = 0;
+        }
       }
     }
-  }
-  else
-  {
-    mqttClient.loop();
+    else
+    {
+      mqttClient.loop();
+    }
   }
 }
 
@@ -201,10 +225,12 @@ boolean connectToMqtt()
       mqttClient.publish(lastWillTopic.c_str(), "online", true);
       mqttClient.publish(ipTopic.c_str(), WiFi.localIP().toString().c_str(), true);
       mqttClient.publish(versionTopic.c_str(), VERSION, true);
+#ifdef MQTT_SUBSCRIBE
       if (mqtt_topics[0] != NULL)
       {
         subscribeMqtt();
       }
+#endif
     }
     else
     {
@@ -223,6 +249,7 @@ boolean connectToMqtt()
   return mqttClient.connected();
 }
 
+#ifdef MQTT_SUBSCRIBE
 void subscribeMqtt()
 {
   // int numTopics = sizeof(mqtt_topics) / sizeof(mqtt_topics[0]);
@@ -234,6 +261,7 @@ void subscribeMqtt()
     mqttClient.subscribe(mqtt_topics[i]);
   }
 }
+#endif
 
 // http & websocket
 String wsSerializeJson()

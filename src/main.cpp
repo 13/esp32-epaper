@@ -1,7 +1,8 @@
+#include <Arduino.h>
+#include "credentials.h"
 #include "wsData.h"
 #include "helpers.h"
 #include "epaper.h"
-#include "credentials.h"
 
 #if defined(ESP8266)
 String hostname = "esp8266-";
@@ -63,9 +64,11 @@ void setup()
 #endif
   display.display(false); // ePaper reset screen
   initFS();
-  connectToWiFi();
+  checkWiFi();
   mqttClient.setServer(mqtt_server, mqtt_port);
+#ifdef MQTT_SUBSCRIBE
   mqttClient.setCallback(onMqttMessage);
+#endif
   if (WiFi.status() == WL_CONNECTED)
   {
     initMDNS();
@@ -101,7 +104,9 @@ void setup()
 void loop()
 {
   ws.cleanupClients();
+#ifdef REQUIRES_INTERNET
   checkWiFi();
+#endif
   checkMqtt();
   loopTime();
 #ifdef MARK

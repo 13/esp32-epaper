@@ -19,7 +19,7 @@
         <div class="row">
           <div class="col">
             <div id="hostname" class="display-6 text-center"></div>
-            <p id="desc" class="lead text-center">arduino cc1101 receiver</p>
+            <p id="desc" class="lead text-center"></p>
             <div class="d-grid gap-2 col-md-6 mx-auto">
               <form
                 id="updateForm"
@@ -119,6 +119,7 @@
 
         // Store references to frequently accessed elements
         const hostnameElement = document.getElementById("hostname");
+        const descElement = document.getElementById("desc");
         const versionElement = document.getElementById("version");
         const updateStatusElement = document.getElementById("updateStatus");
         const updateModalMessage =
@@ -128,6 +129,9 @@
         if (parsedData.hostname) {
           document.querySelector("title").textContent = parsedData.hostname;
           hostnameElement.innerHTML = parsedData.hostname;
+        }
+        if (parsedData.desc) {
+          descElement.innerHTML = parsedData.desc;
         }
         if (parsedData.version) {
           versionElement.innerHTML =
