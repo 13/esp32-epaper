@@ -226,7 +226,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
 
   String ret;
 
-  if (doc.containsKey("N"))
+  if (doc.containsKey("N") || doc.containsKey("id"))
   {
     if (doc["N"] == "22")
     {
@@ -240,7 +240,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
       if (doc.containsKey("H4"))
       {
         float h1_22 = doc["H4"];
-        ret += String(h1_22, 1);
+        ret += String(h1_22, 0);
         ret += "%";
       }
       if (!ret.isEmpty())
@@ -260,7 +260,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
       if (doc.containsKey("H1"))
       {
         float h1_87 = doc["H1"];
-        ret += String(h1_87, 1);
+        ret += String(h1_87, 0);
         ret += "%";
       }
       if (!ret.isEmpty())
@@ -281,6 +281,25 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
       {
         float h1_d5 = doc["H1"];
         ret += String(h1_d5, 1);
+        ret += "%";
+      }
+      if (!ret.isEmpty())
+      {
+        drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER, SFProTextBold32);
+      }
+    }
+    if (doc["id"] == 45863)
+    {
+      if (doc.containsKey("temp_c"))
+      {
+        float t_wsr = doc["temp_c"];
+        ret += String(t_wsr, 1);
+        ret += "° ";
+      }
+      if (doc.containsKey("humidity"))
+      {
+        float h_wsr = doc["humidity"];
+        ret += String(h_wsr, 0);
         ret += "%";
       }
       if (!ret.isEmpty())
