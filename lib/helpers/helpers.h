@@ -22,13 +22,10 @@
 #include <PubSubClient.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-#include "version.h"
-#include "wsData.h"
+#include "../../include/version.h"
+#include <wsData.h>
 
 #define INTERVAL_1MIN (1 * 60 * 1000L)
-
-#define REQUIRES_INTERNET
-#define MQTT_SUBSCRIBE
 
 extern WiFiClient wifiClient;
 extern PubSubClient mqttClient;
@@ -36,14 +33,9 @@ extern WiFiUDP ntpUDP;
 extern NTPClient timeClient;
 
 extern String hostname;
-extern const char* mqtt_topic_lwt;
-extern const char* mqtt_topics[];
 extern uint32_t countMsg;
-extern unsigned long lastMillis;
+extern unsigned long lastMillisMark;
 extern wsData myData;
-extern const char* wifi_ssid;
-extern const char* wifi_pass;
-extern const char* desc;
 extern long mqttLastReconnectAttempt;
 
 // http & websocket
@@ -55,6 +47,8 @@ extern uint8_t connectedClients;
 String getUniqueID();
 void getState();
 void reboot();
+const char* boolToString(boolean value);
+void turnOffLed();
 void checkWiFi();
 void connectToWiFi();
 void initFS();

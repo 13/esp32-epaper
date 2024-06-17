@@ -17,6 +17,19 @@ void reboot()
   ESP.restart();
 }
 
+// boolToString()
+const char *boolToString(boolean value)
+{
+  return value ? "true" : "false";
+}
+
+// Turn off builtin LED
+void turnOffLed()
+{
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
 // Initialize LittleFS
 void initFS()
 {
@@ -34,7 +47,14 @@ void initMDNS()
   {
     Serial.println(F("> [mDNS] ERROR"));
   }
-  MDNS.addService("http", "tcp", 80);
+  else
+  {
+    Serial.println(F("> [mDNS] Starting... OK"));
+    Serial.print(F("> [mDNS] http://"));
+    Serial.print(hostname.c_str());
+    Serial.println(F(".muh"));
+    MDNS.addService("http", "tcp", 80);
+  }
 }
 
 // Get state
@@ -46,7 +66,7 @@ void getState()
     myData.mac = WiFi.macAddress();
     myData.ssid = WiFi.SSID();
     myData.rssi = WiFi.RSSI();
-    myData.desc = desc;
+    myData.desc = DEVICE_DESCRIPTION;
     myData.hostname = hostname;
 #if defined(ESP8266)
     // myData.hostname = WiFi.hostname();
@@ -79,7 +99,7 @@ void printMARK()
   {
     countMsg = 1;
   }
-  if (millis() - lastMillis >= INTERVAL_1MIN)
+  if (millis() - lastMillisMark >= INTERVAL_1MIN)
   {
     Serial.print(F("> [MARK] Uptime: "));
 
@@ -105,7 +125,7 @@ void printMARK()
       Serial.println(F("m"));
     }
     countMsg++;
-    lastMillis += INTERVAL_1MIN;
+    lastMillisMark += INTERVAL_1MIN;
 
     // 1 minute status update
     if (WiFi.status() == WL_CONNECTED)
@@ -115,7 +135,8 @@ void printMARK()
       notifyClients();
     }
 #ifndef REQUIRES_INTERNET
-    if (countMsg % 1440 == 0)
+    // Check every 5 minutes online status
+    if (countMsg % 5 == 0)
     {
       checkWiFi();
       if (WiFi.status() != WL_CONNECTED)
@@ -134,6 +155,15 @@ void checkWiFi()
   {
     connectToWiFi();
   }
+  else
+  {
+    if (WiFi.status() == WL_CONNECTED && countMsg < 1)
+    {
+      Serial.println("> [WiFi] Connected ");
+      Serial.print("> [WiFi] IP: ");
+      Serial.println(WiFi.localIP().toString());
+    }
+  }
 }
 
 void connectToWiFi()
@@ -143,7 +173,7 @@ void connectToWiFi()
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
   WiFi.hostname(hostname);
-  WiFi.begin(wifi_ssid, wifi_pass);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   Serial.print("> [WiFi] Connecting...");
   for (int i = 0; i < 20; i++)
   {
@@ -207,7 +237,7 @@ void checkMqtt()
 
 boolean connectToMqtt()
 {
-  String lastWillTopic = mqtt_topic_lwt;
+  String lastWillTopic = MQTT_TOPIC_LWT;
   lastWillTopic += "/";
   lastWillTopic += hostname;
   String ipTopic = lastWillTopic;
@@ -226,10 +256,13 @@ boolean connectToMqtt()
       mqttClient.publish(ipTopic.c_str(), WiFi.localIP().toString().c_str(), true);
       mqttClient.publish(versionTopic.c_str(), VERSION, true);
 #ifdef MQTT_SUBSCRIBE
-      if (mqtt_topics[0] != NULL)
+      /*if (mqtt_topics[0] != NULL)
       {
         subscribeMqtt();
-      }
+      }*/
+#ifdef MQTT_SUBSCRIBE_TOPIC
+      subscribeMqtt();
+#endif
 #endif
     }
     else
@@ -253,13 +286,19 @@ boolean connectToMqtt()
 void subscribeMqtt()
 {
   // int numTopics = sizeof(mqtt_topics) / sizeof(mqtt_topics[0]);
-  for (int i = 0; mqtt_topics[i] != NULL; i++)
+  /*for (int i = 0; mqtt_topics[i] != NULL; i++)
   {
     Serial.print("[MQTT]: Subscribing ");
     Serial.print(mqtt_topics[i]);
     Serial.println(" ... OK");
     mqttClient.subscribe(mqtt_topics[i]);
-  }
+  }*/
+#ifdef MQTT_SUBSCRIBE_TOPIC
+  Serial.print("> [MQTT] Subscribing... ");
+  Serial.print(MQTT_SUBSCRIBE_TOPIC);
+  Serial.println(" OK");
+  mqttClient.subscribe(MQTT_SUBSCRIBE_TOPIC);
+#endif
 }
 #endif
 
@@ -348,17 +387,11 @@ void initWebSocket()
   server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request)
             {
           AsyncWebServerResponse *response;
-          if (myData.uptime > 2) {
             response = request->beginResponse(200, "application/json", "{\"reboot\":true,\"message\":\"Rebooting...\"}");
             response->addHeader("Connection", "close");
             request->send(response);
             Serial.println(F("> [HTTP] Rebooting..."));
-            reboot();
-          } else {
-            response = request->beginResponse(200, "application/json", "{\"reboot\":false,\"message\":\"Uptime less than or equal to 2, not rebooting.\"}");
-            response->addHeader("Connection", "close");
-            request->send(response);
-          } });
+            reboot(); });
   server.on("/update.html", HTTP_GET, [](AsyncWebServerRequest *request)
             { request->send(LittleFS, "/update.html", "text/html"); });
   server.on(
