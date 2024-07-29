@@ -40,6 +40,8 @@ unsigned long lastMillisMark = 0L;
 uint32_t countMsg = 0;
 #endif
 
+HTTPClient httpClient;
+
 void initSerial()
 {
   Serial.begin(115200);
@@ -105,12 +107,11 @@ void setup()
     configTzTime(time_zone, ntpServers[0], ntpServers[1]);
     printLocalTime(true);
     // FetchJson
-    for (int i = 0; i < sizeof(http_urls) / sizeof(http_urls[0]); i++)
-    {
-      Serial.print("[FETCH]: Fetching ");
-      Serial.print(http_urls[i]);
-      Serial.println(" ...");
-      fetchJson(http_urls[i]);
+    for (int i = 0; http_urls[i] != NULL; i++) {
+        Serial.print("[FETCH]: Fetching ");
+        Serial.print(http_urls[i]);
+        Serial.println(" ...");
+        fetchJson(http_urls[i]);  // Assuming fetchJson is defined elsewhere
     }
     displayData();
   }

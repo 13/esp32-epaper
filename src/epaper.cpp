@@ -268,7 +268,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
         drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 1.31, ret, CENTER, SFProTextBold32);
       }
     }
-    if (doc["N"] == "d5")
+    /*if (doc["N"] == "d5")
     {
       if (doc.containsKey("T1") && doc.containsKey("T2"))
       {
@@ -287,7 +287,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int len)
       {
         drawStringLine(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2.0, ret, CENTER, SFProTextBold32);
       }
-    }
+    }*/
     if (doc["id"] == 45863)
     {
       if (doc.containsKey("temp_c"))

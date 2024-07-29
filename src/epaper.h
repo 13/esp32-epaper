@@ -10,6 +10,7 @@
 #include <U8g2_for_Adafruit_GFX.h>
 #include "../include/SFProTextBold32.h"
 #include "../include/SFProTextBold55.h"
+#include "credentials.h"
 #include <HTTPClient.h>
 
 #define SCREEN_WIDTH 300.0 // Set for landscape mode, don't remove the decimal place!

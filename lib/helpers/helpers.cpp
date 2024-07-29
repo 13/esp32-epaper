@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "../../src/credentials.h"
 
 // Last 4 digits of ChipID
 String getUniqueID()
@@ -256,10 +257,10 @@ boolean connectToMqtt()
       mqttClient.publish(ipTopic.c_str(), WiFi.localIP().toString().c_str(), true);
       mqttClient.publish(versionTopic.c_str(), VERSION, true);
 #ifdef MQTT_SUBSCRIBE
-      /*if (mqtt_topics[0] != NULL)
+      if (mqtt_topics[0] != NULL)
       {
         subscribeMqtt();
-      }*/
+      }
 #ifdef MQTT_SUBSCRIBE_TOPIC
       subscribeMqtt();
 #endif
@@ -285,14 +286,13 @@ boolean connectToMqtt()
 #ifdef MQTT_SUBSCRIBE
 void subscribeMqtt()
 {
-  // int numTopics = sizeof(mqtt_topics) / sizeof(mqtt_topics[0]);
-  /*for (int i = 0; mqtt_topics[i] != NULL; i++)
+  for (int i = 0; mqtt_topics[i] != NULL; i++)
   {
     Serial.print("[MQTT]: Subscribing ");
     Serial.print(mqtt_topics[i]);
     Serial.println(" ... OK");
     mqttClient.subscribe(mqtt_topics[i]);
-  }*/
+  }
 #ifdef MQTT_SUBSCRIBE_TOPIC
   Serial.print("> [MQTT] Subscribing... ");
   Serial.print(MQTT_SUBSCRIBE_TOPIC);
